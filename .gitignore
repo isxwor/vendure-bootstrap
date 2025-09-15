@@ -1,0 +1,10 @@
+node_modules
+dist
+static/assets
+static/email/test-emails
+src/custom-admin-ui/admin-ui
+
+.env
+.tanstack
+.vscode
+.vendure-docs-cache

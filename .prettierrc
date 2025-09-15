@@ -1,0 +1,16 @@
+{
+    "singleQuote": true,
+    "trailingComma": "all",
+    "printWidth": 110,
+    "tabWidth": 4,
+    "arrowParens": "avoid",
+    "htmlWhitespaceSensitivity": "ignore",
+    "overrides": [
+        {
+            "files": "*.tsx",
+            "options": {
+                "tabWidth": 2
+            }
+        }
+    ]
+}
