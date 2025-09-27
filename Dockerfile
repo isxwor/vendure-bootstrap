@@ -1,5 +1,5 @@
 # Use a stable LTS Node.js version explicitly in both stages
-FROM --platform=linux/amd64 node:lts-alpine AS builder_amd64
+FROM node:lts-alpine AS builder_amd64
 WORKDIR /app
 
 # Copy package.json and yarn.lock before installing dependencies
@@ -16,7 +16,7 @@ RUN yarn build && \
     tar -czf build.tar.gz src dist static data migration.ts tsconfig.json tsconfig.dashboard.json entrypoint.sh
 
 # Runner stage - Use the same Node.js LTS version
-FROM --platform=linux/amd64 node:lts-alpine AS runner_amd64
+FROM node:lts-alpine AS runner_amd64
 WORKDIR /app
 
 # Install dependencies (curl or wget for healthcheck)
