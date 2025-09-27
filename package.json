@@ -28,6 +28,7 @@
         "@vendure/email-plugin": "3.4.2",
         "@vendure/graphiql-plugin": "3.4.2",
         "@vendure/ui-devkit": "^3.4.2",
+        "concurrently": "^9.2.1",
         "dotenv": "17.2.2",
         "pg": "8.16.3"
     },
@@ -37,7 +38,6 @@
         "@graphql-codegen/cli": "^6.0.0",
         "@graphql-codegen/typescript": "^5.0.0",
         "@vendure/cli": "3.4.2",
-        "concurrently": "9.2.1",
         "husky": "^9.1.7",
         "lint-staged": "^16.1.6",
         "prettier": "^3.6.2",
