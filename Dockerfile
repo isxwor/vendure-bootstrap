@@ -13,7 +13,7 @@ COPY . .
 
 # Build the project
 RUN yarn build && \
-    tar -czf build.tar.gz src dist static migration.ts tsconfig.json tsconfig.dashboard.json entrypoint.sh .env
+    tar -czf build.tar.gz src dist static migration.ts tsconfig.json tsconfig.dashboard.json entrypoint.sh
 
 # Runner stage - Use the same Node.js LTS version
 FROM node:lts-alpine AS runner
@@ -22,7 +22,7 @@ WORKDIR /app
 # Install dependencies (curl or wget for healthcheck)
 RUN apk update && \
     apk upgrade && \
-    apk add --no-cache curl
+    apk add --no-cache wget curl
 
 # Copy package.json and yarn.lock
 COPY package.json yarn.lock ./
