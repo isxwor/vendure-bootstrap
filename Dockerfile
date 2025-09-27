@@ -13,7 +13,7 @@ COPY . .
 
 # Build the project
 RUN yarn build && \
-    tar -czf build.tar.gz src static data migration.ts tsconfig.json tsconfig.dashboard.json entrypoint.sh
+    tar -czf build.tar.gz src static migration.ts tsconfig.json tsconfig.dashboard.json entrypoint.sh
 
 # Runner stage - Use the same Node.js LTS version
 FROM node:lts-alpine AS runner_amd64
