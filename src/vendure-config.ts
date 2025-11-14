@@ -12,10 +12,8 @@ import {
 } from '@vendure/core';
 import { defaultEmailHandlers, EmailPlugin, FileBasedTemplateLoader } from '@vendure/email-plugin';
 import { AssetServerPlugin, configureS3AssetStorage } from '@vendure/asset-server-plugin';
-import { AdminUiPlugin } from '@vendure/admin-ui-plugin';
 import { GraphiqlPlugin } from '@vendure/graphiql-plugin';
 import { DashboardPlugin } from '@vendure/dashboard/plugin';
-import { customAdminUi } from './custom-admin-ui/compile-admin-ui';
 import { BrandingPlugin } from './plugins/branding/branding.plugin';
 
 const IS_DEV = process.env.APP_ENV === 'dev';
@@ -93,18 +91,6 @@ export const config: VendureConfig = {
             // be guessed correctly, but for production it will usually need
             // to be set manually to match your production url.
             assetUrlPrefix: IS_DEV ? undefined : process.env.ASSET_URL_PREFIX,
-        }),
-        AdminUiPlugin.init({
-            route: 'admin',
-            compatibilityMode: true,
-            port: serverPort + 2,
-            app: customAdminUi({ devMode: IS_DEV, recompile: IS_DEV }),
-            adminUiConfig: {
-                brand: 'Vendure Bootstrap',
-                hideVendureBranding: true,
-                hideVersion: true,
-                ...(IS_DEV ? { apiPort: serverPort } : {}),
-            },
         }),
         DashboardPlugin.init({
             route: 'dashboard',
