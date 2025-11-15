@@ -6,7 +6,7 @@ WORKDIR /app
 # Copy only dependency manifests first — best caching
 COPY package.json yarn.lock ./
 
-# Use BuildKit cache mounts for Yarn cache 
+# Use BuildKit cache mounts for Yarn cache
 RUN yarn install --frozen-lockfile --network-timeout 100000
 
 # Copy the full source (after deps, so dependencies layer is cached)

@@ -15,10 +15,10 @@ if [ -f "$SCRIPT_DIR/.env" ]; then
 fi
 
 # Run migrations first but continue if they fail
-echo "Running migrations..."
-if ! yarn migration:run; then
-    printf "%s⚠ Migration failed, continuing...%s\n" "$YELLOW" "$NC"
-fi
+# echo "Running migrations..."
+# if ! yarn migration:run; then
+#     printf "%s⚠ Migration failed, continuing...%s\n" "$YELLOW" "$NC"
+# fi
 
 # Function to kill both processes on exit
 cleanup() {
