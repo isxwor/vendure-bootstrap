@@ -1,37 +1,52 @@
-### Builder stage
+### BUILDER STAGE
 FROM node:24-alpine AS builder
+
 WORKDIR /app
 
-# Copy package.json and yarn.lock first to leverage caching
+# Copy only dependency manifests first — best caching
 COPY package.json yarn.lock ./
 
-# Install dependencies for build
-RUN yarn install --frozen-lockfile --network-timeout 100000
+# Use BuildKit cache mounts for Yarn cache 
+RUN --mount=type=cache,target=/root/.cache/yarn \
+    yarn install --frozen-lockfile --network-timeout 100000
 
-# Copy the rest of the source code
+# Copy the full source (after deps, so dependencies layer is cached)
 COPY . .
 
 # Build the project
-RUN yarn build && \
-    chmod +x entrypoint.sh
+RUN yarn build && chmod +x entrypoint.sh
 
-### Runner stage
+# Package only what is needed for the runner stage
+# (src → dist, static assets, config files, entrypoint)
+RUN tar -czf build.tar.gz \
+    src \
+    dist \
+    static \
+    tsconfig*.json \
+    migration.ts \
+    entrypoint.sh
+
+### RUNNER STAGE
 FROM node:24-alpine AS runner
+
 WORKDIR /app
 
-# Copy production dependencies (package.json + yarn.lock)
+# Install required runtime tools (minimal)
+RUN apk add --no-cache curl wget tar
+
+# Copy production dependency manifest
 COPY package.json yarn.lock ./
 
-# Install dependencies
-RUN apk add --no-cache curl wget && \
-    yarn install --production --frozen-lockfile --network-timeout 100000 && \
-    yarn cache clean --all && \
-    rm -rf ~/.cache /usr/local/share/.cache/* /var/cache/apk/* /tmp/* /usr/share/man /usr/share/doc
+# BuildKit cache for yarn + minimal production install
+RUN --mount=type=cache,target=/root/.cache/yarn \
+    yarn install --prod --frozen-lockfile --network-timeout 100000 && \
+    yarn cache clean --all
 
-# Copy build artifacts from builder
-COPY --from=builder /app/src /app/dist /app/static /app/entrypoint.sh /app/tsconfig*.json /app/migration.ts ./
+# Extract artifacts from builder stage
+COPY --from=builder /app/build.tar.gz ./
+RUN tar -xzf build.tar.gz && rm build.tar.gz /var/cache/apk/* /tmp/* /usr/share/man /usr/share/doc
 
-# Expose port and set entrypoint
 EXPOSE 3000
+
 ENTRYPOINT ["./entrypoint.sh"]
 
