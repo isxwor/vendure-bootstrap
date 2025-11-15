@@ -1,13 +1,11 @@
-import { defineDashboardExtension, Trans } from '@vendure/dashboard';
+import { defineDashboardExtension } from '@vendure/dashboard';
 
 export default defineDashboardExtension({
   login: {
-    logo: {
+    beforeForm: {
       component: () => (
-        <div>
-          <h1 className="text-2xl font-medium">
-            <Trans>Welcome back!</Trans>
-          </h1>
+        <div className="text-center">
+          <h1 className="text-2xl font-medium">Welcome back!</h1>
           <p className="text-muted-foreground text-balance">Login to your Vendure Bootstrap store</p>
         </div>
       ),

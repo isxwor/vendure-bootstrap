@@ -1,47 +1,50 @@
-# Use a stable LTS Node.js version explicitly in both stages
-FROM node:lts-alpine AS builder
+### BUILDER STAGE
+FROM node:24-alpine AS builder
+
 WORKDIR /app
 
-# Copy package.json and yarn.lock before installing dependencies
+# Copy only dependency manifests first — best caching
 COPY package.json yarn.lock ./
 
-# Install dependencies before copying the entire source code
-RUN yarn install --network-timeout 100000
+# Use BuildKit cache mounts for Yarn cache
+RUN yarn install --frozen-lockfile --network-timeout 100000
 
-# Copy the rest of the application
+# Copy the full source (after deps, so dependencies layer is cached)
 COPY . .
 
 # Build the project
-RUN yarn build && \
-    tar -czf build.tar.gz src dist static migration.ts tsconfig.json tsconfig.dashboard.json entrypoint.sh
+RUN yarn build && chmod +x entrypoint.sh
 
-# Runner stage - Use the same Node.js LTS version
-FROM node:lts-alpine AS runner
+# Package only what is needed for the runner stage
+# (src → dist, static assets, config files, entrypoint)
+RUN tar -czf build.tar.gz \
+    src \
+    dist \
+    static \
+    tsconfig*.json \
+    migration.ts \
+    entrypoint.sh
+
+### RUNNER STAGE
+FROM node:24-alpine AS runner
+
 WORKDIR /app
 
-# Install dependencies (curl or wget for healthcheck)
-RUN apk update && \
-    apk upgrade && \
-    apk add --no-cache wget curl
+# Install required runtime tools (minimal)
+RUN apk add --no-cache curl wget
 
-# Copy package.json and yarn.lock
+# Copy production dependency manifest
 COPY package.json yarn.lock ./
 
-# Install production dependencies **before** extracting build files
-RUN yarn install --production --network-timeout 100000 && \
+# BuildKit cache for yarn + minimal production install
+RUN yarn install --prod --frozen-lockfile --network-timeout 100000 && \
     yarn cache clean --all
 
-# Copy built files from the builder stage
+# Extract artifacts from builder stage
 COPY --from=builder /app/build.tar.gz ./
+RUN tar -xzf build.tar.gz && rm -rf build.tar.gz /var/cache/apk/* /tmp/* /usr/share/man /usr/share/doc
 
-# Extract build files and clean up tar.gz
-RUN tar -xzf build.tar.gz && \
-    rm -rf build.tar.gz && \
-    chmod +x entrypoint.sh
-
-# Cleanup unnecessary files to reduce image size
-RUN rm -rf ~/.cache/* /usr/local/share/.cache/* /var/cache/apk/* /tmp/* /usr/share/man /usr/share/doc
-
-# Expose the application port and set entrypoint
 EXPOSE 3000
+
 ENTRYPOINT ["./entrypoint.sh"]
+
