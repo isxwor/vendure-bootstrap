@@ -43,5 +43,9 @@
         "**/*": [
             "yarn format"
         ]
+    },
+    "resolutions": {
+        "@swc/core": "1.13.5",
+        "vite": "^6.3.6"
     }
 }
