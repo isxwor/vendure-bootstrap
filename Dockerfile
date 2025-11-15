@@ -7,8 +7,7 @@ WORKDIR /app
 COPY package.json yarn.lock ./
 
 # Use BuildKit cache mounts for Yarn cache 
-RUN --mount=type=cache,target=/root/.cache/yarn \
-    yarn install --frozen-lockfile --network-timeout 100000
+RUN yarn install --frozen-lockfile --network-timeout 100000
 
 # Copy the full source (after deps, so dependencies layer is cached)
 COPY . .
@@ -32,19 +31,18 @@ FROM node:24-alpine AS runner
 WORKDIR /app
 
 # Install required runtime tools (minimal)
-RUN apk add --no-cache curl wget tar
+RUN apk add --no-cache curl wget
 
 # Copy production dependency manifest
 COPY package.json yarn.lock ./
 
 # BuildKit cache for yarn + minimal production install
-RUN --mount=type=cache,target=/root/.cache/yarn \
-    yarn install --prod --frozen-lockfile --network-timeout 100000 && \
+RUN yarn install --prod --frozen-lockfile --network-timeout 100000 && \
     yarn cache clean --all
 
 # Extract artifacts from builder stage
 COPY --from=builder /app/build.tar.gz ./
-RUN tar -xzf build.tar.gz && rm build.tar.gz /var/cache/apk/* /tmp/* /usr/share/man /usr/share/doc
+RUN tar -xzf build.tar.gz && rm -rf build.tar.gz /var/cache/apk/* /tmp/* /usr/share/man /usr/share/doc
 
 EXPOSE 3000
 
