@@ -4468,10 +4468,15 @@
   resolved "https://registry.yarnpkg.com/@vendure/common/-/common-3.5.1.tgz#b7f4a9c5964ff72847228f3ae5cceb6d16aeb23d"
   integrity sha512-jjQVffCoKRaMNVpTStNc69cai+VMhuIgTWmkH3raEIYa5CnIyg2iShRWxuTPJOVmNzQReYVxbmb8jUWHeZ/Z8g==
 
-"@vendure/core@3.5.1":
-  version "3.5.1"
-  resolved "https://registry.yarnpkg.com/@vendure/core/-/core-3.5.1.tgz#2d969b6f16cf0e5641585fc1ad4fbda155e65a90"
-  integrity sha512-OGJS8GlU28hUAOU7P1dyaWJ8lhV5xUEhQvIi6U/LZqlsUtzZZSi4pjG+RACGzh0Vq/oQ8+wAkMSb//8XiNw/vw==
+"@vendure/common@3.5.3":
+  version "3.5.3"
+  resolved "https://registry.yarnpkg.com/@vendure/common/-/common-3.5.3.tgz#16ded51d4cce6de5ab9cc0f203b2ec154b0eacde"
+  integrity sha512-MDLgXWi4yUk5BwJASsdgXZs6uuiu+cSMIwHr2BD42Qy7c0F0EpUjI9QyPBxZpjYSCGCYOOqkJLYvizHToDsCSQ==
+
+"@vendure/core@3.5.3":
+  version "3.5.3"
+  resolved "https://registry.yarnpkg.com/@vendure/core/-/core-3.5.3.tgz#fe35338348f74444898ed03a202467f638aa2550"
+  integrity sha512-FpSkyNt8/eNhXcu3OOJ2ag2tJLSgdJOBnbePT29XtuuPPChqhDo0YbvDsplSrnDGAPXomXl0LGeRFBCYeGyXVA==
   dependencies:
     "@apollo/server" "^4.12.2"
     "@graphql-tools/stitch" "^9.4.5"
@@ -4482,7 +4487,7 @@
     "@nestjs/platform-express" "^11.0.12"
     "@nestjs/terminus" "^11.0.0"
     "@nestjs/typeorm" "^11.0.0"
-    "@vendure/common" "3.5.1"
+    "@vendure/common" "3.5.3"
     bcrypt "^5.1.1"
     body-parser "^1.20.2"
     cookie-session "^2.1.0"

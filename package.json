@@ -21,7 +21,7 @@
         "@aws-sdk/lib-storage": "^3.931.0",
         "@types/react": "^19.2.4",
         "@vendure/asset-server-plugin": "3.5.1",
-        "@vendure/core": "3.5.1",
+        "@vendure/core": "3.5.3",
         "@vendure/dashboard": "^3.5.1",
         "@vendure/email-plugin": "3.5.1",
         "@vendure/graphiql-plugin": "3.5.1",
