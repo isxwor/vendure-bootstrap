@@ -6,6 +6,8 @@ declare global {
     namespace NodeJS {
         interface ProcessEnv {
             APP_ENV: string;
+            EMAIL_ENV: string;
+            ASSET_ENV: string;
 
             PORT: string;
 

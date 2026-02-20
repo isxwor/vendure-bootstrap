@@ -18,6 +18,7 @@ import { BrandingPlugin } from './plugins/branding/branding.plugin';
 
 const IS_DEV = process.env.APP_ENV === 'dev';
 const IS_EMAIL_DEV = process.env.EMAIL_ENV === 'dev';
+const IS_ASSET_LOCAL = process.env.ASSET_ENV === 'local';
 const serverPort = +String(process.env.PORT) || 3000;
 
 export const config: VendureConfig = {
@@ -71,7 +72,7 @@ export const config: VendureConfig = {
             route: 'assets',
             assetUploadDir: path.join(__dirname, '../static/assets'),
             namingStrategy: new DefaultAssetNamingStrategy(),
-            ...(IS_DEV
+            ...(IS_ASSET_LOCAL
                 ? {}
                 : {
                       storageStrategyFactory: configureS3AssetStorage({
@@ -90,11 +91,11 @@ export const config: VendureConfig = {
             // For local dev, the correct value for assetUrlPrefix should
             // be guessed correctly, but for production it will usually need
             // to be set manually to match your production url.
-            assetUrlPrefix: IS_DEV ? undefined : process.env.ASSET_URL_PREFIX,
+            assetUrlPrefix: IS_ASSET_LOCAL ? undefined : process.env.ASSET_URL_PREFIX,
         }),
         DashboardPlugin.init({
             route: 'dashboard',
-            appDir: IS_DEV ? path.join(__dirname, '../dist/dashboard') : path.join(__dirname, 'dashboard'),
+            appDir: IS_DEV ? path.join(__dirname, '../dist/dashboard') : path.join(__dirname, '../dashboard'),
         }),
         DefaultSchedulerPlugin.init(),
         DefaultJobQueuePlugin.init({ useDatabaseForBuffer: true }),
