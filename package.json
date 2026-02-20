@@ -14,7 +14,8 @@
         "migration:run": "ts-node migration.ts run",
         "migration:revert": "ts-node migration.ts revert",
         "prepare": "husky install",
-        "format": "prettier --write --ignore-unknown"
+        "format": "prettier --write --ignore-unknown",
+        "codegen": "graphql-codegen --config codegen.ts"
     },
     "dependencies": {
         "@aws-sdk/client-s3": "^3.994.0",
@@ -31,6 +32,7 @@
     "devDependencies": {
         "@commitlint/cli": "^20.4.2",
         "@commitlint/config-conventional": "^20.4.2",
+        "@graphql-codegen/cli": "^6.1.1",
         "@vendure/cli": "3.5.4",
         "concurrently": "^9.2.1",
         "husky": "^9.1.7",
