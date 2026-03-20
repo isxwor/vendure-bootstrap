@@ -3510,7 +3510,7 @@
     aria-hidden "^1.2.4"
     react-remove-scroll "^2.6.3"
 
-"@radix-ui/react-direction@1.1.1":
+"@radix-ui/react-direction@1.1.1", "@radix-ui/react-direction@^1.1.1":
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/@radix-ui/react-direction/-/react-direction-1.1.1.tgz#39e5a5769e676c753204b792fbe6cf508e550a14"
   integrity sha512-1UEWRX6jnOA2y4H5WczZ44gOOjTEmlqv1uNW4GAJEO5+bauCBhv8snY65Iw5/VOS/ghKN9gr2KjnLKxrsvoMVw==
@@ -6006,22 +6006,22 @@
   resolved "https://registry.yarnpkg.com/@uidotdev/usehooks/-/usehooks-2.4.1.tgz#4b733eaeae09a7be143c6c9ca158b56cc1ea75bf"
   integrity sha512-1I+RwWyS+kdv3Mv0Vmc+p0dPYH0DTRAo04HLyXReYBL9AeseDWUJyi4THuksBJcu9F0Pih69Ak150VDnqbVnXg==
 
-"@vendure/asset-server-plugin@3.5.4":
-  version "3.5.4"
-  resolved "https://registry.yarnpkg.com/@vendure/asset-server-plugin/-/asset-server-plugin-3.5.4.tgz#f5ca67d5a7a19fb5d3ad492a2673dd85ca6fc948"
-  integrity sha512-xeXKr8PzO4T33Vb4VDE+XApgZIlQC2TqL8BU5Tvr6vzG9TdJ0lIHKkfoMFmu+fjHcNw8FrDrZR8IweSIIYQJrw==
+"@vendure/asset-server-plugin@3.5.5":
+  version "3.5.5"
+  resolved "https://registry.yarnpkg.com/@vendure/asset-server-plugin/-/asset-server-plugin-3.5.5.tgz#314c6488b00467e54ea25ae995935eaa0ae1ac9f"
+  integrity sha512-Yu9lkN4cqZgLjhE5uOm6Q0fFXIILcuYS4osvgKyRvPQ2L3KQ4pZfIh8fV1NenEWM9F0qF4mM+QEh5x2SPuslLw==
   dependencies:
     file-type "^19.0.0"
     fs-extra "^11.2.0"
     sharp "~0.33.5"
 
-"@vendure/cli@3.5.4":
-  version "3.5.4"
-  resolved "https://registry.yarnpkg.com/@vendure/cli/-/cli-3.5.4.tgz#484625aca13ff9bd5db09de8cf16a4a2ab1c3c85"
-  integrity sha512-+AzcsHX6dhPPgJyVecGTlYO6BYH1vhT3zIhoJAK/3O3LMpEp4PS2ZTlWTBdxzKjIeJ7lNXXoNdmlmmQibW+l7g==
+"@vendure/cli@3.5.5":
+  version "3.5.5"
+  resolved "https://registry.yarnpkg.com/@vendure/cli/-/cli-3.5.5.tgz#28e1779209c00be2bb30c7e45b604735207e0cbc"
+  integrity sha512-bA1SRysZvrg6mBjkkmiXHojOFSaIDK2gH/FYc2yE6w276CRTRafn1rZ93lnxqKlgx+eeoSN1+h05Gyz9mLwA+g==
   dependencies:
     "@clack/prompts" "^0.7.0"
-    "@vendure/common" "3.5.4"
+    "@vendure/common" "3.5.5"
     change-case "^4.1.2"
     commander "^11.0.0"
     dotenv "^16.4.5"
@@ -6032,15 +6032,15 @@
     ts-node "^10.9.2"
     tsconfig-paths "^4.2.0"
 
-"@vendure/common@3.5.4":
-  version "3.5.4"
-  resolved "https://registry.yarnpkg.com/@vendure/common/-/common-3.5.4.tgz#cd7557ae5fb6a93c16341cf4f02b307f54a2ce08"
-  integrity sha512-mBeelwbdcsSTOuOA7XJ2bsi2aJcJET4sk0C+AOSv9t9P/8rkVsB1B3GBMTZtkHITk4yc/6FxwBWBbhMLKY30uA==
+"@vendure/common@3.5.5":
+  version "3.5.5"
+  resolved "https://registry.yarnpkg.com/@vendure/common/-/common-3.5.5.tgz#f01e97445f3d8ff6d2a908dd0cf396892a63ed4a"
+  integrity sha512-oJ+7pr0PMM131rPwnjaoQv9WFsbqLI104Q50XZ3Nlnkr0qO2i6ZItxRlvcRGvcvguQIEfTbsOCbXGrw+LXVpNw==
 
-"@vendure/core@3.5.4":
-  version "3.5.4"
-  resolved "https://registry.yarnpkg.com/@vendure/core/-/core-3.5.4.tgz#c3e1395a50eb236e27de76744fe06e868d1544c2"
-  integrity sha512-gJ5b1MHCvIQEKCIeyD9aLcrp2rychw0LdkMB81iB5COlzDcMkEeUUJ3I0v91nDLmecv9AjdGJZNjGcGbVf8I4g==
+"@vendure/core@3.5.5":
+  version "3.5.5"
+  resolved "https://registry.yarnpkg.com/@vendure/core/-/core-3.5.5.tgz#5670f8c2a58f7d5af2931cd9fdf65dac34b5abef"
+  integrity sha512-ro43mlmUlNfPrEHU4yOB9QuJrZAlrEO7GA4AYJ0gKfa+1I2QlHpjBUlSJdKGgsmXWmHVImbjxgdlv2b5tCifDg==
   dependencies:
     "@apollo/server" "^4.12.2"
     "@graphql-tools/stitch" "^9.4.5"
@@ -6051,7 +6051,7 @@
     "@nestjs/platform-express" "^11.0.12"
     "@nestjs/terminus" "^11.0.0"
     "@nestjs/typeorm" "^11.0.0"
-    "@vendure/common" "3.5.4"
+    "@vendure/common" "3.5.5"
     bcrypt "^5.1.1"
     body-parser "^1.20.2"
     cookie-session "^2.1.0"
@@ -6083,10 +6083,10 @@
     semver "^7.6.0"
     typeorm "^0.3.21"
 
-"@vendure/dashboard@^3.5.4":
-  version "3.5.4"
-  resolved "https://registry.yarnpkg.com/@vendure/dashboard/-/dashboard-3.5.4.tgz#b4cb15f006958efc5766aa518446f01c8e0f9b21"
-  integrity sha512-cNdYY47MwB8gXZafDccByF2t9EjU4r9c8oWxxeb5ht5BsnDAhN2J1Y2wq4Jza6pq8s+ceyW6PMCCmFc4IC7Shw==
+"@vendure/dashboard@^3.5.5":
+  version "3.5.5"
+  resolved "https://registry.yarnpkg.com/@vendure/dashboard/-/dashboard-3.5.5.tgz#1fd6364d435dfb2a75f19d1c1336a682ef7fadc6"
+  integrity sha512-PjDl79iSX3M5MuwNodlVfujDeHvwr1USL33NiwOM1wd15NXki0ZoGY+vs2809cek5hUgrij9i1WBaD7eReihKw==
   dependencies:
     "@babel/core" "^7.26.0"
     "@babel/preset-react" "^7.26.3"
@@ -6108,6 +6108,7 @@
     "@radix-ui/react-collapsible" "^1.1.11"
     "@radix-ui/react-context-menu" "^2.2.15"
     "@radix-ui/react-dialog" "^1.1.14"
+    "@radix-ui/react-direction" "^1.1.1"
     "@radix-ui/react-dropdown-menu" "^2.1.15"
     "@radix-ui/react-hover-card" "^1.1.14"
     "@radix-ui/react-label" "^2.1.7"
@@ -6184,10 +6185,10 @@
     lightningcss-linux-arm64-musl "^1.29.3"
     lightningcss-linux-x64-musl "^1.29.1"
 
-"@vendure/email-plugin@3.5.4":
-  version "3.5.4"
-  resolved "https://registry.yarnpkg.com/@vendure/email-plugin/-/email-plugin-3.5.4.tgz#28aa38f9fa93cb39a76c6b9664080e85f3046d0f"
-  integrity sha512-XsiPU+HWmdFFuhgcGVlFXhYVvxsQt1to7f/6pvnKqs1X+1m3suoBqSemnrU55UvvDiaTIiSKZGne4ldiWU2K8w==
+"@vendure/email-plugin@3.5.5":
+  version "3.5.5"
+  resolved "https://registry.yarnpkg.com/@vendure/email-plugin/-/email-plugin-3.5.5.tgz#25529f6b7bf1341fc6d9f552aea4e8ec012747bb"
+  integrity sha512-P8WPoWVG39RauSjCtl5SdyzWYjjrJ4vdeReCUqGOHJBnZfSxxlub85VUhyHR+R9Xuu00E8F6pSfhuO7HJmTCTA==
   dependencies:
     "@types/nodemailer" "^6.4.9"
     dateformat "^3.0.3"
@@ -6197,10 +6198,10 @@
     mjml "^4.14.1"
     nodemailer "^6.9.4"
 
-"@vendure/graphiql-plugin@3.5.4":
-  version "3.5.4"
-  resolved "https://registry.yarnpkg.com/@vendure/graphiql-plugin/-/graphiql-plugin-3.5.4.tgz#71a4d3821d2003a47430047930e01cb41249f889"
-  integrity sha512-BW3ANJviY296kIEe2Jm99mtmLRvwk2jqIriuSdxSMAzKFignQKzeaNFww5/VchhbHfkpZ8UGtWaZ9ymX6L/ddg==
+"@vendure/graphiql-plugin@3.5.5":
+  version "3.5.5"
+  resolved "https://registry.yarnpkg.com/@vendure/graphiql-plugin/-/graphiql-plugin-3.5.5.tgz#cf57a3cf3628ecd5f1d4ff174b79adc302bc533b"
+  integrity sha512-heH54ju0dSIDr5aU3coVoQX8jEJExVYyn/ZfejmJCuuVG3GzCugJEi5OlDnCQL+VhvOykWfWee+EUg6roi0dUQ==
   dependencies:
     express "^5.1.0"
 
