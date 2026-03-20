@@ -19,8 +19,8 @@
         "seed": "ts-node --transpile-only ./scripts/seed.ts"
     },
     "dependencies": {
-        "@aws-sdk/client-s3": "^3.994.0",
-        "@aws-sdk/lib-storage": "^3.994.0",
+        "@aws-sdk/client-s3": "^3.1013.0",
+        "@aws-sdk/lib-storage": "^3.1013.0",
         "@types/react": "^19.2.14",
         "@vendure/asset-server-plugin": "3.5.4",
         "@vendure/core": "3.5.4",
@@ -28,16 +28,16 @@
         "@vendure/email-plugin": "3.5.4",
         "@vendure/graphiql-plugin": "3.5.4",
         "dotenv": "17.3.1",
-        "pg": "8.18.0"
+        "pg": "8.20.0"
     },
     "devDependencies": {
-        "@commitlint/cli": "^20.4.2",
-        "@commitlint/config-conventional": "^20.4.2",
-        "@graphql-codegen/cli": "^6.1.1",
+        "@commitlint/cli": "^20.5.0",
+        "@commitlint/config-conventional": "^20.5.0",
+        "@graphql-codegen/cli": "^6.2.1",
         "@vendure/cli": "3.5.4",
         "concurrently": "^9.2.1",
         "husky": "^9.1.7",
-        "lint-staged": "^16.2.7",
+        "lint-staged": "^16.4.0",
         "prettier": "^3.8.1",
         "ts-node-dev": "^2.0.0",
         "typescript": "5.9.3"
