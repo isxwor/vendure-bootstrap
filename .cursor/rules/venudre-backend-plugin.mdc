@@ -1,0 +1,908 @@
+---
+description: Rules for creating and modifying Vendure backend plugins (entities, services, resolvers, GraphQL schema, permissions, migrations)
+globs: src/plugins/**/*.ts,src/plugins/**/*.plugin.ts,src/migrations/**/*.ts
+alwaysApply: false
+---
+
+# Vendure Backend Plugin Development Rules
+
+This project is a Vendure v3.5+ e-commerce backend using TypeScript, NestJS, TypeORM, PostgreSQL, and GraphQL. All custom features are implemented as self-contained plugins in `src/plugins/`.
+
+## Plugin Directory Structure
+
+Every plugin MUST follow this directory layout:
+
+```
+src/plugins/<plugin-name>/
+  ├── <plugin-name>.plugin.ts       # Plugin definition (or plugin.ts)
+  ├── constants.ts                   # Permissions, logger symbols, injection tokens
+  ├── entities/
+  │   ├── <entity>.entity.ts         # Main entity
+  │   └── <entity>-translation.entity.ts  # Only if translatable
+  ├── services/
+  │   └── <entity>.service.ts        # Business logic
+  ├── api/
+  │   ├── extension.ts               # GraphQL schema (admin + shop)
+  │   ├── admin.resolver.ts          # Admin API resolver
+  │   └── shop.resolver.ts           # Shop API resolver (if needed)
+  └── types.ts                       # TypeScript type augmentations (if using custom fields)
+```
+
+---
+
+## Plugin Definition
+
+```typescript
+import { PluginCommonModule, VendurePlugin } from '@vendure/core';
+
+@VendurePlugin({
+    imports: [PluginCommonModule],
+    entities: [MyEntity, MyEntityTranslation],  // Register ALL entities including translations
+    adminApiExtensions: {
+        schema: adminApiExtensions,
+        resolvers: [MyAdminResolver],
+    },
+    shopApiExtensions: {
+        schema: shopApiExtensions,
+        resolvers: [MyShopResolver],
+    },
+    providers: [MyService],
+    configuration: config => {
+        config.authOptions.customPermissions.push(myPermission);
+        return config;
+    },
+    compatibility: '^3.0.0',
+})
+export class MyPlugin {}
+```
+
+Rules:
+- ALWAYS import `PluginCommonModule`
+- ALWAYS set `compatibility: '^3.0.0'`
+- Register custom permissions via `configuration` callback pushing to `config.authOptions.customPermissions`
+- Register ALL entities including translation entities in the `entities` array
+- If the plugin needs configurable options, use the static `init()` pattern:
+
+```typescript
+export class MyPlugin {
+    static options: MyPluginOptions;
+    static init(options: MyPluginOptions): Type<MyPlugin> {
+        this.options = options;
+        return MyPlugin;
+    }
+}
+```
+
+---
+
+## Entity Definitions
+
+### Simple Entity (no translations)
+
+```typescript
+import { DeepPartial, VendureEntity, ID } from '@vendure/core';
+import { Entity, Column, ManyToOne, Index } from 'typeorm';
+
+@Entity()
+export class MyEntity extends VendureEntity {
+    constructor(input?: DeepPartial<MyEntity>) {
+        super(input);
+    }
+
+    @Column()
+    name: string;
+
+    @Column({ type: 'boolean', default: true })
+    enabled: boolean;
+}
+```
+
+### Translatable Entity
+
+When an entity has fields that need multi-language support (titles, descriptions, content, slugs, etc.), use the Translatable pattern.
+
+**When to use Translatable:**
+- Entity has user-facing text fields (names, titles, descriptions, content, slugs, meta tags)
+- Content will be displayed to end customers in their language
+
+**When NOT to use Translatable:**
+- Entity only has system fields (status, dates, numeric values, boolean flags, relations)
+- Entity stores internal/technical data
+
+**Parent entity:**
+
+```typescript
+import { DeepPartial, VendureEntity, Translatable, Translation, LocaleString } from '@vendure/core';
+import { Entity, Column, OneToMany, DeleteDateColumn } from 'typeorm';
+
+@Entity()
+export class MyEntity extends VendureEntity implements Translatable {
+    constructor(input?: DeepPartial<MyEntity>) {
+        super(input);
+    }
+
+    // Translatable fields - NO @Column decorator, type is LocaleString
+    title: LocaleString;
+    content: LocaleString;
+
+    // Non-translatable fields - HAVE @Column decorator
+    @Column({ type: 'boolean' })
+    enabled: boolean;
+
+    @DeleteDateColumn({ nullable: true })
+    deletedAt: Date | null;
+
+    // Translations relation - MUST be eager: true
+    @OneToMany(type => MyEntityTranslation, t => t.base, { eager: true })
+    translations: Array<Translation<MyEntity>>;
+}
+```
+
+**Translation entity:**
+
+```typescript
+import { DeepPartial, VendureEntity, LanguageCode } from '@vendure/core';
+import { Translation } from '@vendure/core';
+import { Entity, Column, ManyToOne, Index } from 'typeorm';
+
+@Entity()
+export class MyEntityTranslation extends VendureEntity implements Translation<MyEntity> {
+    constructor(input?: DeepPartial<Translation<MyEntityTranslation>>) {
+        super(input);
+    }
+
+    @Column('varchar')
+    languageCode: LanguageCode;
+
+    // Translatable fields as regular @Column - same names as parent
+    @Column()
+    title: string;
+
+    @Column({ type: 'text' })
+    content: string;
+
+    // Back-reference - MUST use onDelete: 'CASCADE' and @Index
+    @Index()
+    @ManyToOne(type => MyEntity, base => base.translations, { onDelete: 'CASCADE' })
+    base: MyEntity;
+}
+```
+
+Key rules for Translatable:
+- Translatable fields on parent entity: type `LocaleString`, NO `@Column()` decorator
+- Same-named fields on translation entity: regular `@Column()` with `string` type
+- Translation `@OneToMany` on parent MUST have `{ eager: true }`
+- Translation `@ManyToOne` back to parent MUST have `{ onDelete: 'CASCADE' }` and `@Index()`
+- Translation relation property MUST be named `base`
+- Constructor of translation: `DeepPartial<Translation<MyEntityTranslation>>`
+
+### Channel-Aware Entity
+
+When an entity should be scoped to specific channels (multi-store/multi-tenant), implement `ChannelAware`:
+
+```typescript
+import { ChannelAware, Channel } from '@vendure/core';
+import { ManyToMany, JoinTable } from 'typeorm';
+
+@Entity()
+export class MyEntity extends VendureEntity implements Translatable, ChannelAware {
+    // ... other fields
+
+    @ManyToMany(() => Channel)
+    @JoinTable()
+    channels: Channel[];
+}
+```
+
+### Soft Deletes
+
+Use `@DeleteDateColumn` for soft deletes:
+
+```typescript
+@DeleteDateColumn({ nullable: true })
+deletedAt: Date | null;
+```
+
+Always filter with `{ deletedAt: IsNull() }` in queries.
+
+---
+
+## Permissions (constants.ts)
+
+**For CRUD operations (most entities), use CrudPermissionDefinition:**
+
+```typescript
+import { CrudPermissionDefinition } from '@vendure/core';
+
+export const myEntityPermission = new CrudPermissionDefinition('MyEntity');
+// Generates: myEntityPermission.Create, .Read, .Update, .Delete
+```
+
+**For single-action operations, use PermissionDefinition:**
+
+```typescript
+import { PermissionDefinition } from '@vendure/core';
+
+export const myPermission = new PermissionDefinition({
+    name: 'MyAction',
+    description: 'Allows performing MyAction',
+});
+// Usage: myPermission.Permission
+```
+
+---
+
+## Service Layer
+
+### Constructor Dependencies
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import {
+    TransactionalConnection,
+    ListQueryBuilder,
+    TranslatorService,
+    TranslatableSaver,
+    ChannelService,        // Only if ChannelAware
+    RequestContext,
+    ID,
+    assertFound,
+    UserInputError,
+    EntityNotFoundError,
+} from '@vendure/core';
+import { IsNull, In } from 'typeorm';
+
+@Injectable()
+export class MyService {
+    constructor(
+        private connection: TransactionalConnection,
+        private listQueryBuilder: ListQueryBuilder,
+        private translator: TranslatorService,       // Only if Translatable
+        private translatableSaver: TranslatableSaver, // Only if Translatable
+        private channelService: ChannelService,       // Only if ChannelAware
+    ) {}
+}
+```
+
+### Non-Translatable Entity Service (complete example)
+
+For entities that do NOT use translations - simpler constructor, direct repository operations.
+
+**Choose your delete strategy before writing the service:**
+- **Soft delete** -- data is preserved, row gets a `deletedAt` timestamp. Use when the data may need to be recovered, audited, or referenced by other entities. Requires `@DeleteDateColumn` on the entity and `IsNull()` filters on all queries.
+- **Hard delete** -- row is permanently removed from the database. Use for ephemeral/disposable data (wishlist items, session data, logs, tracking records) where recovery is not needed.
+
+#### Option A: Non-Translatable with Hard Delete
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import {
+    TransactionalConnection,
+    ListQueryBuilder,
+    RequestContext,
+    ID,
+    assertFound,
+    UserInputError,
+    EntityNotFoundError,
+} from '@vendure/core';
+import { DeletionResponse, DeletionResult } from '../../../codegen/adminTypes';
+import { In } from 'typeorm';
+import { MyEntity } from '../entities/my-entity.entity';
+
+@Injectable()
+export class MyEntityService {
+    constructor(
+        private connection: TransactionalConnection,
+        private listQueryBuilder: ListQueryBuilder,
+    ) {}
+
+    async findAll(ctx: RequestContext, options?: any) {
+        return this.listQueryBuilder
+            .build(MyEntity, options, { ctx })
+            .getManyAndCount()
+            .then(([items, totalItems]) => ({
+                items,
+                totalItems,
+            }));
+    }
+
+    async findOne(ctx: RequestContext, id: ID): Promise<MyEntity | undefined> {
+        const entity = await this.connection
+            .getRepository(ctx, MyEntity)
+            .findOne({ where: { id } });
+        return entity ?? undefined;
+    }
+
+    async create(ctx: RequestContext, input: any): Promise<MyEntity> {
+        const entity = new MyEntity(input);
+        const saved = await this.connection
+            .getRepository(ctx, MyEntity)
+            .save(entity);
+        return assertFound(this.findOne(ctx, saved.id));
+    }
+
+    async update(ctx: RequestContext, input: any): Promise<MyEntity> {
+        const existing = await this.connection.getEntityOrThrow(ctx, MyEntity, input.id);
+        const updated = { ...existing, ...input };
+        await this.connection.getRepository(ctx, MyEntity).save(updated);
+        return assertFound(this.findOne(ctx, input.id));
+    }
+
+    async delete(ctx: RequestContext, id: ID): Promise<DeletionResponse> {
+        const entity = await this.connection
+            .getRepository(ctx, MyEntity)
+            .findOneOrFail({ where: { id } });
+        try {
+            await this.connection.getRepository(ctx, MyEntity).remove(entity);
+            return { result: DeletionResult.DELETED, message: '' };
+        } catch (e: any) {
+            return { result: DeletionResult.NOT_DELETED, message: e.toString() };
+        }
+    }
+
+    async deleteMultiple(ctx: RequestContext, ids: ID[]): Promise<DeletionResponse> {
+        if (!ids || ids.length === 0) {
+            throw new UserInputError('No IDs provided');
+        }
+        try {
+            const result = await this.connection
+                .getRepository(ctx, MyEntity)
+                .delete({ id: In(ids) as any });
+            return {
+                result: (result.affected ?? 0) > 0
+                    ? DeletionResult.DELETED
+                    : DeletionResult.NOT_DELETED,
+                message: '',
+            };
+        } catch (e: any) {
+            return { result: DeletionResult.NOT_DELETED, message: e.toString() };
+        }
+    }
+}
+```
+
+#### Option B: Non-Translatable with Soft Delete
+
+Entity MUST have `@DeleteDateColumn`:
+
+```typescript
+// In the entity file:
+@DeleteDateColumn({ nullable: true })
+deletedAt: Date | null;
+```
+
+Service:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import {
+    TransactionalConnection,
+    ListQueryBuilder,
+    RequestContext,
+    ID,
+    assertFound,
+    UserInputError,
+    EntityNotFoundError,
+} from '@vendure/core';
+import { DeletionResponse, DeletionResult } from '../../../codegen/adminTypes';
+import { IsNull, In } from 'typeorm';
+import { MyEntity } from '../entities/my-entity.entity';
+
+@Injectable()
+export class MyEntityService {
+    constructor(
+        private connection: TransactionalConnection,
+        private listQueryBuilder: ListQueryBuilder,
+    ) {}
+
+    async findAll(ctx: RequestContext, options?: any) {
+        return this.listQueryBuilder
+            .build(MyEntity, options, {
+                ctx,
+                where: { deletedAt: IsNull() },  // Filter out soft-deleted
+            })
+            .getManyAndCount()
+            .then(([items, totalItems]) => ({
+                items,
+                totalItems,
+            }));
+    }
+
+    async findOne(ctx: RequestContext, id: ID): Promise<MyEntity | undefined> {
+        const entity = await this.connection
+            .getRepository(ctx, MyEntity)
+            .findOne({ where: { id, deletedAt: IsNull() } });  // Filter out soft-deleted
+        return entity ?? undefined;
+    }
+
+    async create(ctx: RequestContext, input: any): Promise<MyEntity> {
+        const entity = new MyEntity(input);
+        const saved = await this.connection
+            .getRepository(ctx, MyEntity)
+            .save(entity);
+        return assertFound(this.findOne(ctx, saved.id));
+    }
+
+    async update(ctx: RequestContext, input: any): Promise<MyEntity> {
+        const existing = await this.connection
+            .getRepository(ctx, MyEntity)
+            .findOne({ where: { id: input.id, deletedAt: IsNull() } });
+        if (!existing) {
+            throw new EntityNotFoundError('MyEntity', input.id);
+        }
+        const updated = { ...existing, ...input };
+        await this.connection.getRepository(ctx, MyEntity).save(updated);
+        return assertFound(this.findOne(ctx, input.id));
+    }
+
+    async delete(ctx: RequestContext, ids: ID[]): Promise<DeletionResponse> {
+        if (ids.length === 0) {
+            throw new UserInputError('No IDs provided');
+        }
+        const deleteResult = await this.connection
+            .getRepository(ctx, MyEntity)
+            .softDelete({ id: In(ids) as any });  // Sets deletedAt, does NOT remove the row
+
+        return {
+            result: (deleteResult.affected ?? 0) > 0
+                ? DeletionResult.DELETED
+                : DeletionResult.NOT_DELETED,
+            message: '',
+        };
+    }
+}
+```
+
+Key differences between Hard Delete and Soft Delete (non-translatable):
+
+| | Hard Delete | Soft Delete |
+|---|---|---|
+| Entity | No `deletedAt` column | Has `@DeleteDateColumn` |
+| Queries | No extra filter | EVERY query adds `deletedAt: IsNull()` |
+| Delete method | `.remove()` / `.delete()` | `.softDelete()` |
+| Data after delete | Gone permanently | Row stays, `deletedAt` is set |
+| Use for | Ephemeral data (wishlist, logs, sessions) | Business data that may need recovery/audit |
+
+Key differences from translatable service (both options):
+- NO `TranslatorService` or `TranslatableSaver` in constructor
+- `findAll` returns items directly (no `.translator.translate()` call)
+- `create` uses `new MyEntity(input)` + `.save()` instead of `translatableSaver.create()`
+- `update` uses `getEntityOrThrow()` + spread merge + `.save()` instead of `translatableSaver.update()`
+
+---
+
+### Translatable Entity Service (CRUD methods)
+
+For entities that use translations - requires `TranslatorService` and `TranslatableSaver`:
+
+#### findAll (List with pagination)
+
+```typescript
+async findAll(ctx: RequestContext, options?: MyEntityListOptions) {
+    return this.listQueryBuilder
+        .build(MyEntity, options, {
+            ctx,
+            channelId: ctx.channelId,          // Only if ChannelAware
+            where: { deletedAt: IsNull() },    // Only if soft-deletable
+        })
+        .getManyAndCount()
+        .then(([items, totalItems]) => ({
+            items: items.map(item => this.translator.translate(item, ctx)),
+            totalItems,
+        }));
+}
+```
+
+#### findOne
+
+```typescript
+// Option A: Return undefined when not found (let caller handle)
+async findOne(ctx: RequestContext, id: ID) {
+    return this.connection
+        .findOneInChannel(ctx, MyEntity, id, ctx.channelId, {
+            where: { deletedAt: IsNull() },
+        })
+        .then(entity => entity && this.translator.translate(entity, ctx));
+}
+
+// Option B: Throw EntityNotFoundError when not found
+async findOneOrThrow(ctx: RequestContext, id: ID) {
+    const entity = await this.connection
+        .getRepository(ctx, MyEntity)
+        .findOne({ where: { id, deletedAt: IsNull() } });
+    if (!entity) {
+        throw new EntityNotFoundError('MyEntity', id);
+    }
+    return this.translator.translate(entity, ctx);
+}
+```
+
+#### create (Translatable)
+
+```typescript
+async create(ctx: RequestContext, input: CreateMyEntityInput) {
+    const entity = await this.translatableSaver.create({
+        ctx,
+        input,
+        entityType: MyEntity,
+        translationType: MyEntityTranslation,
+        beforeSave: async (e) => {
+            // Assign to current channel if ChannelAware
+            await this.channelService.assignToCurrentChannel(e, ctx);
+            // Set up relations here
+        },
+    });
+    return assertFound(this.findOne(ctx, entity.id));
+}
+```
+
+#### update (Translatable)
+
+```typescript
+async update(ctx: RequestContext, input: UpdateMyEntityInput) {
+    const updated = await this.translatableSaver.update({
+        ctx,
+        input,
+        entityType: MyEntity,
+        translationType: MyEntityTranslation,
+        beforeSave: async (e) => {
+            // Update relations here if needed
+        },
+    });
+    return assertFound(this.findOne(ctx, updated.id));
+}
+```
+
+#### delete (soft delete)
+
+```typescript
+async delete(ctx: RequestContext, ids: ID[]): Promise<DeletionResponse> {
+    if (ids.length === 0) {
+        throw new UserInputError('error.no-ids-provided');
+    }
+    // Validate entities exist in channel, then soft delete
+    const deleteResult = await this.connection
+        .getRepository(ctx, MyEntity)
+        .softDelete({ id: In(ids) });
+
+    return {
+        result: (deleteResult.affected ?? 0) > 0
+            ? DeletionResult.DELETED
+            : DeletionResult.NOT_DELETED,
+        message: '',
+    };
+}
+```
+
+---
+
+## Error Handling Rules
+
+### When to throw EntityNotFoundError
+- In `findOneOrThrow` methods when an entity lookup returns null and the caller expects the entity to exist
+- Use: `throw new EntityNotFoundError('EntityName', id)`
+- Import from `@vendure/core`
+
+### When to throw UserInputError
+- Invalid input data (empty arrays, missing required fields, non-existent IDs in bulk operations)
+- Business logic validation failures
+- Attempting to remove from default channel
+- Use: `throw new UserInputError('error message')`
+
+### When to use try-catch
+- ONLY around operations that can fail in expected ways where you need to return a structured error response (e.g., `DeletionResponse` with `NOT_DELETED`)
+- ONLY around external service calls (HTTP, third-party APIs) where you need to log and wrap the error
+- ONLY in batch processing where individual item failure should not abort the whole batch
+
+### When to let errors bubble up (NO try-catch)
+- Service CRUD methods (create, update, delete) - let Vendure framework handle errors
+- Database operations using `TransactionalConnection` - TypeORM/Vendure will throw appropriate errors
+- Resolver methods - they are thin pass-throughs, never catch errors here
+- `translatableSaver.create()` / `.update()` calls
+- `assertFound()` calls - they throw automatically if entity not found
+- `connection.getEntityOrThrow()` calls - throws automatically
+
+### General principle
+**Default: let errors bubble up.** The Vendure framework catches errors at the GraphQL layer and converts them to appropriate error responses. Only use try-catch when you have a specific recovery strategy or need to return a structured error type.
+
+---
+
+## Resolver Layer
+
+Resolvers MUST be thin pass-throughs that delegate to services. NEVER put business logic in resolvers.
+
+### Admin Resolver
+
+```typescript
+import { Args, Mutation, Query, Resolver } from '@nestjs/graphql';
+import { Allow, Ctx, RequestContext, Transaction } from '@vendure/core';
+import { MutationCreateMyEntityArgs, MutationUpdateMyEntityArgs } from '../../../codegen/adminTypes';
+
+@Resolver()
+export class MyAdminResolver {
+    constructor(private myService: MyService) {}
+
+    @Allow(myPermission.Read)
+    @Query()
+    async myEntities(@Ctx() ctx: RequestContext, @Args() args: any) {
+        return this.myService.findAll(ctx, args.options);
+    }
+
+    @Allow(myPermission.Read)
+    @Query()
+    async myEntity(@Ctx() ctx: RequestContext, @Args() args: any) {
+        return this.myService.findOne(ctx, args.id);
+    }
+
+    @Allow(myPermission.Create)
+    @Mutation()
+    async createMyEntity(@Ctx() ctx: RequestContext, @Args() args: MutationCreateMyEntityArgs) {
+        return this.myService.create(ctx, args.input);
+    }
+
+    @Allow(myPermission.Update)
+    @Mutation()
+    async updateMyEntity(@Ctx() ctx: RequestContext, @Args() args: MutationUpdateMyEntityArgs) {
+        return this.myService.update(ctx, args.input);
+    }
+
+    @Transaction()
+    @Allow(myPermission.Delete)
+    @Mutation()
+    async deleteMyEntity(@Ctx() ctx: RequestContext, @Args() args: any) {
+        return this.myService.delete(ctx, args.ids);
+    }
+}
+```
+
+Rules:
+- Use `@Allow()` with the correct CRUD permission on every resolver method
+- Use `@Transaction()` on delete mutations and any mutation doing multiple DB writes
+- Queries do NOT need `@Transaction()`
+- Create/Update mutations typically do NOT need `@Transaction()` (TranslatableSaver handles it)
+- Import mutation arg types from `../../../codegen/adminTypes` (auto-generated)
+- NEVER put try-catch in resolvers
+
+### Shop Resolver
+
+```typescript
+@Resolver()
+export class MyShopResolver {
+    constructor(private myService: MyService) {}
+
+    @Query()
+    async myEntities(@Ctx() ctx: RequestContext, @Args() args: any) {
+        return this.myService.findAll(ctx, {
+            ...args.options,
+            filter: { enabled: { eq: true } },  // Force-filter to only show enabled
+        });
+    }
+}
+```
+
+Rules:
+- Shop resolvers are typically read-only (queries only)
+- No `@Allow()` decorator needed for public endpoints
+- ALWAYS force-filter to show only `enabled: true` or published status
+- Use `@Allow(Permission.Owner)` for customer-specific operations
+
+---
+
+## GraphQL Schema (api/extension.ts)
+
+```typescript
+import { gql } from 'graphql-tag';
+
+const common = gql`
+    type MyEntity implements Node {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        title: String!
+        content: String
+        enabled: Boolean!
+        languageCode: LanguageCode
+        translations: [MyEntityTranslation!]!
+    }
+
+    type MyEntityTranslation implements Node {
+        id: ID!
+        createdAt: DateTime!
+        updatedAt: DateTime!
+        languageCode: LanguageCode!
+        title: String!
+        content: String!
+    }
+
+    type MyEntityList implements PaginatedList {
+        items: [MyEntity!]!
+        totalItems: Int!
+    }
+
+    # Empty input - Vendure auto-generates filter/sort/pagination
+    input MyEntityListOptions
+`;
+
+export const shopApiExtensions = gql`
+    ${common}
+    extend type Query {
+        myEntities(options: MyEntityListOptions): MyEntityList!
+        myEntity(id: ID!): MyEntity
+    }
+`;
+
+export const adminApiExtensions = gql`
+    ${common}
+
+    input MyEntityTranslationInput {
+        id: ID
+        languageCode: LanguageCode!
+        title: String!
+        content: String!
+    }
+
+    input CreateMyEntityInput {
+        enabled: Boolean!
+        translations: [MyEntityTranslationInput!]!
+    }
+
+    input UpdateMyEntityInput {
+        id: ID!
+        enabled: Boolean
+        translations: [MyEntityTranslationInput!]!
+    }
+
+    extend type Mutation {
+        createMyEntity(input: CreateMyEntityInput!): MyEntity!
+        updateMyEntity(input: UpdateMyEntityInput!): MyEntity!
+        deleteMyEntity(ids: [ID!]!): DeletionResponse!
+    }
+
+    extend type Query {
+        myEntity(id: ID!): MyEntity
+        myEntities(options: MyEntityListOptions): MyEntityList!
+    }
+`;
+```
+
+Rules:
+- Extract shared types into a `common` fragment
+- Types MUST implement `Node` interface (requires `id: ID!`)
+- List types MUST implement `PaginatedList` interface
+- `ListOptions` input MUST be empty (Vendure generates it)
+- `TranslationInput` MUST have `id: ID` (optional, for updates) and `languageCode: LanguageCode!`
+- Shop API: queries only. Admin API: queries + mutations + input types
+- Delete mutations take `ids: [ID!]!` and return `DeletionResponse!`
+
+---
+
+## Database Migrations
+
+### CRITICAL RULES
+
+1. **NEVER set `synchronize: true`** in `dbConnectionOptions`. This project uses `synchronize: false`. Always use migrations.
+2. **Whenever you add/modify/remove an entity or its columns**, you MUST generate a migration.
+3. **NEVER manually write migration SQL.** Always generate it.
+
+### Migration Workflow
+
+Use the npm scripts defined in `package.json`:
+
+```bash
+# 1. Generate migration after entity changes
+yarn migration:generate <descriptive-name>
+
+# 2. Review the generated file in src/migrations/
+# 3. Run the migration
+yarn migration:run
+
+# To revert the last migration if needed
+yarn migration:revert
+```
+
+These scripts map to:
+- `migration:generate` -> `ts-node --transpile-only migration.ts generate`
+- `migration:run` -> `ts-node --transpile-only migration.ts run`
+- `migration:revert` -> `ts-node --transpile-only migration.ts revert`
+
+The migration file outputs to `./src/migrations/` with a timestamp prefix.
+
+### Migration file format
+
+```typescript
+import { MigrationInterface, QueryRunner } from "typeorm";
+
+export class MyMigration1234567890123 implements MigrationInterface {
+    public async up(queryRunner: QueryRunner): Promise<any> {
+        await queryRunner.query(`CREATE TABLE ...`);
+    }
+    public async down(queryRunner: QueryRunner): Promise<any> {
+        await queryRunner.query(`DROP TABLE ...`);
+    }
+}
+```
+
+---
+
+## Git & PR Workflow
+
+### Before creating a PR
+
+1. **ALWAYS fetch and pull from deploy branch first:**
+   ```bash
+   git fetch origin
+   git pull origin <deploy-branch>
+   ```
+
+2. **Resolve any merge conflicts**
+
+3. **Check if the pull brought in new migration files:**
+   ```bash
+   git diff --name-only HEAD@{1} HEAD -- src/migrations/
+   ```
+
+4. **If new migration files came in from the pull, run migrations:**
+   ```bash
+   yarn migration:run
+   ```
+   Only run migrations if new migration files were added by the pull. Do NOT run migrations if no new files appeared.
+
+5. **If YOU made entity changes, generate YOUR migration AFTER pulling and running any incoming migrations:**
+   ```bash
+   yarn migration:generate <your-feature-name>
+   yarn migration:run
+   ```
+
+6. **Then create the PR**
+
+### Commit message conventions
+This project uses commitlint. Follow conventional commits:
+- `feat: add FAQ plugin`
+- `fix: resolve blog translation issue`
+- `chore: generate migration for FAQ entity`
+
+---
+
+## Registering the Plugin
+
+After creating a plugin, register it in `src/vendure-config.ts`:
+
+```typescript
+import { MyPlugin } from './plugins/my-plugin/my-plugin.plugin';
+
+export const config: VendureConfig = {
+    plugins: [
+        // ... existing plugins
+        MyPlugin,
+        // Or with options: MyPlugin.init({ ... }),
+    ],
+};
+```
+
+---
+
+## Import Conventions
+
+- Vendure core imports: `from '@vendure/core'`
+- TypeORM decorators: `from 'typeorm'`
+- NestJS decorators: `from '@nestjs/common'` and `from '@nestjs/graphql'`
+- GraphQL tag: `from 'graphql-tag'`
+- Admin types (codegen): `from '../../../codegen/adminTypes'` (relative path from resolver)
+- Shop types (codegen): `from '../../../codegen/shopTypes'`
+
+---
+
+## Checklist for New Plugin
+
+- [ ] Plugin directory created under `src/plugins/<name>/`
+- [ ] Entity file(s) created with proper decorators
+- [ ] Translation entity created (if translatable)
+- [ ] Constants file with permission definition
+- [ ] Service with CRUD operations
+- [ ] Admin resolver with permissions
+- [ ] Shop resolver (if public data)
+- [ ] GraphQL schema extension with common/shop/admin split
+- [ ] Plugin class with `@VendurePlugin` decorator
+- [ ] Plugin registered in `vendure-config.ts`
+- [ ] Migration generated and run
+- [ ] Types added to codegen by running the server and regenerating

@@ -1,0 +1,879 @@
+---
+description: Rules for creating and modifying Vendure v3 dashboard (React UI) extensions for admin plugins
+globs: src/plugins/**/dashboard/**/*.tsx,src/plugins/**/dashboard/**/*.ts
+alwaysApply: false
+---
+
+# Vendure Dashboard (React UI) Plugin Development Rules
+
+This project uses **Vendure v3 Dashboard** (React-based, NOT Angular). Dashboard extensions live inside each plugin's `dashboard/` directory and are registered via `dashboard: './dashboard/index.tsx'` in the `@VendurePlugin` decorator.
+
+## Technology Stack
+
+- **React** (hooks-based, functional components only)
+- **@vendure/dashboard** - all layout, form, and page components
+- **@tanstack/react-router** - routing (`useNavigate`, `Link`, `useParams`)
+- **@tanstack/react-query** - data fetching (`useQuery`, `useMutation`, `useQueryClient`)
+- **sonner** - toast notifications (`toast.success()`, `toast.error()`)
+- **lucide-react** - icons
+- **react-hook-form** - form state management (integrated into `useDetailPage`)
+- **@/gql** - typed GraphQL operations via codegen (aliased to `./src/gql/graphql.ts`)
+
+---
+
+## Dashboard Directory Structure
+
+```
+src/plugins/<plugin-name>/dashboard/
+  ├── index.tsx                    # Extension entry point (defineDashboardExtension)
+  ├── <entity>.graphql.ts          # GraphQL fragments, queries, mutations
+  ├── <entity>-list.tsx            # List page component
+  ├── <entity>-detail.tsx          # Detail/create/edit page component
+  └── components/
+      ├── <entity>-bulk-actions.tsx # Bulk action components (optional)
+      └── <other-components>.tsx   # Any additional UI components
+```
+
+---
+
+## Extension Entry Point (index.tsx)
+
+```tsx
+import { defineDashboardExtension } from '@vendure/dashboard';
+import { SomeIcon } from 'lucide-react';
+import { myEntityList } from './<entity>-list';
+import { myEntityDetail } from './<entity>-detail';
+import { DeleteBulkAction } from './components/<entity>-bulk-actions';
+
+defineDashboardExtension({
+    // Create a new nav section (optional - use existing ones if appropriate)
+    navSections: [
+        {
+            id: 'my-section',
+            title: 'My Section',
+            icon: SomeIcon,
+            order: 550,  // Controls position in sidebar
+        },
+    ],
+    // Register page routes
+    routes: [myEntityList, myEntityDetail],
+    // Register bulk actions for list pages
+    dataTables: [
+        {
+            pageId: '<entity>-list',  // Must match the ListPage pageId
+            bulkActions: [
+                {
+                    order: 100,
+                    component: DeleteBulkAction,
+                },
+            ],
+        },
+    ],
+});
+```
+
+Available extension options:
+- `navSections` - Create new sidebar sections
+- `routes` - Add new page routes
+- `dataTables` - Add bulk actions to list pages
+- `pageBlocks` - Inject UI into existing detail pages
+- `actionBarItems` - Add buttons to existing page action bars
+- `customFormComponents` - Register custom form input components
+
+### Using existing nav sections
+
+Built-in section IDs: `'catalog'`, `'sales'`, `'marketing'`, `'customers'`, `'settings'`, `'system'`
+
+```tsx
+navMenuItem: {
+    sectionId: 'marketing',  // Use existing section
+    id: 'my-entity',
+    title: 'My Entity',
+    url: '/my-entity',
+    requiresPermission: 'ReadMyEntity',
+},
+```
+
+---
+
+## GraphQL Operations (<entity>.graphql.ts)
+
+```tsx
+import { graphql, ResultOf } from '@/gql';
+
+// 1. Define a fragment with all fields
+const myEntityFragment = graphql(`
+    fragment MyEntityFragment on MyEntity {
+        id
+        createdAt
+        updatedAt
+        title
+        content
+        enabled
+        languageCode
+        translations {
+            id
+            languageCode
+            title
+            content
+        }
+    }
+`);
+
+// 2. List query
+export const getMyEntityListQuery = graphql(
+    `
+        query GetMyEntityList($options: MyEntityListOptions) {
+            myEntities(options: $options) {
+                items {
+                    ...MyEntityFragment
+                }
+                totalItems
+            }
+        }
+    `,
+    [myEntityFragment],
+);
+
+// 3. Detail query
+export const getMyEntityDetailQuery = graphql(
+    `
+        query GetMyEntityDetail($id: ID!) {
+            myEntity(id: $id) {
+                ...MyEntityFragment
+            }
+        }
+    `,
+    [myEntityFragment],
+);
+
+// 4. Create mutation
+export const createMyEntityMutation = graphql(
+    `
+        mutation CreateMyEntity($input: CreateMyEntityInput!) {
+            createMyEntity(input: $input) {
+                ...MyEntityFragment
+            }
+        }
+    `,
+    [myEntityFragment],
+);
+
+// 5. Update mutation
+export const updateMyEntityMutation = graphql(
+    `
+        mutation UpdateMyEntity($input: UpdateMyEntityInput!) {
+            updateMyEntity(input: $input) {
+                ...MyEntityFragment
+            }
+        }
+    `,
+    [myEntityFragment],
+);
+
+// 6. Delete mutation
+export const deleteMyEntityMutation = graphql(`
+    mutation DeleteMyEntity($ids: [ID!]!) {
+        deleteMyEntity(ids: $ids) {
+            message
+            result
+        }
+    }
+`);
+
+// Optional: export type for use in components
+export type MyEntityFragment = ResultOf<typeof myEntityFragment>;
+```
+
+Rules:
+- ALWAYS import `graphql` and `ResultOf` from `@/gql`
+- ALWAYS define a fragment first, then reference it in queries/mutations using the array syntax: `graphql(\`...\`, [fragment])`
+- Fragment names must match the GraphQL fragment name exactly
+- Include `languageCode` and `translations` in fragments for translatable entities
+
+---
+
+## List Page (<entity>-list.tsx)
+
+```tsx
+import {
+    Button,
+    DashboardRouteDefinition,
+    ListPage,
+    PageActionBarRight,
+    DetailPageButton,
+} from '@vendure/dashboard';
+import { Link } from '@tanstack/react-router';
+import { PlusIcon } from 'lucide-react';
+import { getMyEntityListQuery } from './<entity>.graphql';
+
+export const myEntityList: DashboardRouteDefinition = {
+    path: '/my-entity',
+    navMenuItem: {
+        sectionId: 'my-section',        // Must match navSection id
+        id: 'my-entity-list',
+        url: '/my-entity',
+        title: 'My Entities',
+        requiresPermission: 'ReadMyEntity',  // Optional permission guard
+    },
+    loader: () => ({
+        breadcrumb: 'My Entities',
+    }),
+    component: route => (
+        <ListPage
+            pageId="my-entity-list"
+            title="My Entities"
+            listQuery={getMyEntityListQuery}
+            route={route}
+            defaultVisibility={{
+                id: false,
+                languageCode: false,
+                translations: false,
+            }}
+            onSearchTermChange={searchTerm => ({
+                title: { contains: searchTerm },
+            })}
+            customizeColumns={{
+                title: {
+                    cell: ({ row }) => (
+                        <DetailPageButton
+                            id={row.original.id}
+                            label={row.original.title}
+                        />
+                    ),
+                },
+            }}
+        >
+            <PageActionBarRight>
+                <Button asChild>
+                    <Link to="./new">
+                        <PlusIcon className="mr-2 h-4 w-4" />
+                        New Entity
+                    </Link>
+                </Button>
+            </PageActionBarRight>
+        </ListPage>
+    ),
+};
+```
+
+Rules:
+- Use `DashboardRouteDefinition` type for route objects
+- Use `<ListPage>` component (declarative, preferred approach)
+- Set `defaultVisibility` to hide `id`, `languageCode`, `translations` columns
+- Use `<DetailPageButton>` in the primary column to link to detail page
+- `pageId` must be unique and is used to register bulk actions
+- `onSearchTermChange` returns a filter object matching the entity's fields
+- For faceted filters use `facetedFilters` prop
+- Use `transformVariables` to modify query variables if needed
+
+---
+
+## Detail Page (<entity>-detail.tsx)
+
+```tsx
+import { AnyRoute, useNavigate } from '@tanstack/react-router';
+import {
+    Button,
+    DashboardRouteDefinition,
+    detailPageRouteLoader,
+    FormFieldWrapper,
+    Input,
+    Page,
+    PageActionBar,
+    PageActionBarRight,
+    PageBlock,
+    PageLayout,
+    PageTitle,
+    PermissionGuard,
+    RichTextInput,
+    Switch,
+    TranslatableFormFieldWrapper,
+    useDetailPage,
+} from '@vendure/dashboard';
+import { toast } from 'sonner';
+import {
+    createMyEntityMutation,
+    getMyEntityDetailQuery,
+    updateMyEntityMutation,
+} from './<entity>.graphql';
+
+export const myEntityDetail: DashboardRouteDefinition = {
+    path: '/my-entity/$id',
+    loader: detailPageRouteLoader({
+        queryDocument: getMyEntityDetailQuery,
+        breadcrumb: (isNew, entity) => [
+            { path: '/my-entity', label: 'My Entities' },
+            isNew ? 'New Entity' : entity?.title ?? '',
+        ],
+    }),
+    component: route => <MyEntityDetailPage route={route as AnyRoute} />,
+};
+
+function MyEntityDetailPage({ route }: { route: AnyRoute }) {
+    const params = route.useParams();
+    const navigate = useNavigate();
+    const creatingNewEntity = params.id === 'new';
+
+    const { form, submitHandler, entity, isPending, resetForm } = useDetailPage({
+        queryDocument: getMyEntityDetailQuery,
+        createDocument: createMyEntityMutation,
+        updateDocument: updateMyEntityMutation,
+        setValuesForUpdate: entity => ({
+            id: entity?.id ?? '',
+            enabled: entity?.enabled ?? true,
+            translations: entity.translations.map(t => ({
+                id: t.id,
+                languageCode: t.languageCode,
+                title: t.title,
+                content: t.content,
+            })),
+        }),
+        params: { id: params.id },
+        onSuccess: async data => {
+            toast.success(
+                creatingNewEntity
+                    ? 'Successfully created entity'
+                    : 'Successfully updated entity',
+            );
+            resetForm();
+            if (creatingNewEntity) {
+                await navigate({ to: `../$id`, params: { id: data.id } as any });
+            }
+        },
+        onError: err => {
+            toast.error(
+                creatingNewEntity
+                    ? 'Failed to create entity'
+                    : 'Failed to update entity',
+                {
+                    description: err instanceof Error ? err.message : 'Unknown error',
+                },
+            );
+        },
+    });
+
+    return (
+        <Page pageId="my-entity-detail" form={form} submitHandler={submitHandler}>
+            <PageTitle>
+                {creatingNewEntity ? 'New Entity' : (entity?.title ?? '')}
+            </PageTitle>
+            <PageActionBar>
+                <PageActionBarRight>
+                    <PermissionGuard requires={['CreateMyEntity', 'UpdateMyEntity']}>
+                        <Button
+                            type="submit"
+                            disabled={
+                                !form.formState.isDirty ||
+                                !form.formState.isValid ||
+                                isPending
+                            }
+                        >
+                            {creatingNewEntity ? 'Create' : 'Update'}
+                        </Button>
+                    </PermissionGuard>
+                </PageActionBarRight>
+            </PageActionBar>
+            <PageLayout>
+                {/* Side column - settings/toggles */}
+                <PageBlock column="side" blockId="settings">
+                    <FormFieldWrapper
+                        control={form.control}
+                        name="enabled"
+                        label="Enabled"
+                        description="When enabled, visible in the shop"
+                        render={({ field }) => (
+                            <Switch
+                                checked={field.value}
+                                onCheckedChange={field.onChange}
+                            />
+                        )}
+                    />
+                </PageBlock>
+
+                {/* Main column - translatable content */}
+                <PageBlock column="main" blockId="content">
+                    <div className="grid gap-6 items-start mb-6">
+                        <TranslatableFormFieldWrapper
+                            control={form.control}
+                            name="title"
+                            label="Title"
+                            render={({ field }) => <Input {...(field as any)} />}
+                        />
+                        <TranslatableFormFieldWrapper
+                            control={form.control}
+                            name="content"
+                            label="Content"
+                            render={({ field }) => <RichTextInput {...field} />}
+                        />
+                    </div>
+                </PageBlock>
+            </PageLayout>
+        </Page>
+    );
+}
+```
+
+Rules:
+- ALWAYS use `useDetailPage` hook for detail pages
+- Route path MUST end with `/$id` (e.g., `/my-entity/$id`)
+- Check `params.id === 'new'` to determine create vs. update mode
+- Use `detailPageRouteLoader` for the route loader
+- `setValuesForUpdate` maps the entity to form values - MUST include `translations` array for translatable entities
+- On create success, navigate to the newly created entity: `navigate({ to: '../$id', params: { id: data.id } })`
+- Use `resetForm()` after successful save
+- Use `toast.success()` / `toast.error()` from `sonner` for notifications
+- Use `PermissionGuard` to conditionally show the submit button
+
+### Form Field Types
+
+**Non-translatable fields** - use `FormFieldWrapper`:
+```tsx
+<FormFieldWrapper
+    control={form.control}
+    name="enabled"
+    label="Enabled"
+    render={({ field }) => <Switch checked={field.value} onCheckedChange={field.onChange} />}
+/>
+```
+
+**Translatable fields** - use `TranslatableFormFieldWrapper`:
+```tsx
+<TranslatableFormFieldWrapper
+    control={form.control}
+    name="title"
+    label="Title"
+    render={({ field }) => <Input {...(field as any)} />}
+/>
+```
+
+**Available form components from `@vendure/dashboard`:**
+- `Input` - text input
+- `RichTextInput` - rich text / HTML editor
+- `Switch` - boolean toggle
+- `Select`, `SelectContent`, `SelectItem`, `SelectTrigger`, `SelectValue` - dropdowns
+- `Checkbox` - checkbox
+- `DateTimeInput` - date/time picker
+- `SlugInput` - auto-generated slug from another field
+- `AssetGallery` - image/asset picker
+
+### Page Layout
+
+```tsx
+<Page pageId="unique-page-id" form={form} submitHandler={submitHandler}>
+    <PageTitle>Title</PageTitle>
+    <PageActionBar>
+        <PageActionBarRight>
+            {/* Buttons */}
+        </PageActionBarRight>
+    </PageActionBar>
+    <PageLayout>
+        <PageBlock column="side" blockId="unique-block-id">
+            {/* Side panel content */}
+        </PageBlock>
+        <PageBlock column="main" blockId="unique-block-id">
+            {/* Main content */}
+        </PageBlock>
+    </PageLayout>
+</Page>
+```
+
+- `column="side"` - right sidebar (settings, toggles, metadata)
+- `column="main"` - main content area (forms, editors)
+- Every `PageBlock` needs a unique `blockId`
+
+---
+
+## Bulk Actions (components/<entity>-bulk-actions.tsx)
+
+```tsx
+import { BulkActionComponent, DataTableBulkActionItem, api } from '@vendure/dashboard';
+import { Trash2 } from 'lucide-react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
+import { deleteMyEntityMutation } from '../<entity>.graphql';
+
+export const DeleteBulkAction: BulkActionComponent = ({ selection, table }) => {
+    const queryClient = useQueryClient();
+    const { mutateAsync } = useMutation({
+        mutationFn: (ids: string[]) =>
+            api.mutate(deleteMyEntityMutation, { ids }),
+    });
+
+    return (
+        <DataTableBulkActionItem
+            label="Delete"
+            icon={Trash2}
+            requiresPermission={['DeleteMyEntity']}
+            confirmationText={`Delete ${selection.length} item(s)?`}
+            onClick={async () => {
+                const ids = selection.map(row => row.id);
+                try {
+                    await mutateAsync(ids);
+                    toast.success(`Deleted ${ids.length} item(s)`);
+                    table.resetRowSelection();
+                    await queryClient.invalidateQueries();
+                } catch (e) {
+                    toast.error('Failed to delete items');
+                }
+            }}
+        />
+    );
+};
+```
+
+Rules:
+- Bulk action components receive `{ selection, table }` props
+- Use `api.mutate()` from `@vendure/dashboard` for mutations
+- Use `api.query()` for queries
+- ALWAYS invalidate queries after mutations: `queryClient.invalidateQueries()`
+- ALWAYS reset row selection after bulk action: `table.resetRowSelection()`
+- Use `requiresPermission` array on `DataTableBulkActionItem`
+
+---
+
+## Table Components (IMPORTANT)
+
+When displaying tabular data in dashboard extensions, **ALWAYS use table components from `@vendure/dashboard`**. DO NOT use raw HTML `<table>` elements or third-party table libraries. There are three levels of table abstraction available, listed from highest to lowest level:
+
+### 1. `ListPage` (Preferred for standard list views)
+
+The highest-level abstraction. Auto-generates columns from a GraphQL list query, with built-in search, filtering, sorting, pagination, and bulk action support. **Use this for any standard entity list page.**
+
+```tsx
+import { ListPage, DetailPageButton } from '@vendure/dashboard';
+
+<ListPage
+    pageId="my-entity-list"
+    title="My Entities"
+    listQuery={getMyEntityListQuery}
+    route={route}
+    defaultVisibility={{ id: false, languageCode: false, translations: false }}
+    onSearchTermChange={searchTerm => ({ title: { contains: searchTerm } })}
+    customizeColumns={{
+        title: {
+            cell: ({ row }) => (
+                <DetailPageButton id={row.original.id} label={row.original.title} />
+            ),
+        },
+    }}
+>
+    {/* Action bar children */}
+</ListPage>
+```
+
+### 2. `DataTable` (For custom/embedded tables)
+
+A mid-level component that uses `@tanstack/react-table` column definitions. **Use this when embedding a table inside a detail page, custom page, or any non-standard list view** (e.g., a sub-table of related items within a detail page).
+
+```tsx
+import { DataTable } from '@vendure/dashboard';
+import { createColumnHelper } from '@tanstack/react-table';
+
+type MyItem = { id: string; name: string; status: string };
+const columnHelper = createColumnHelper<MyItem>();
+
+const columns = [
+    columnHelper.accessor('name', {
+        header: 'Name',
+        cell: info => <span className="font-medium">{info.getValue()}</span>,
+    }),
+    columnHelper.accessor('status', {
+        header: 'Status',
+        cell: info => <span>{info.getValue()}</span>,
+    }),
+    columnHelper.display({
+        id: 'actions',
+        header: () => <div className="text-right">Actions</div>,
+        cell: ({ row }) => (
+            <div className="flex items-center gap-2 justify-end">
+                <Button variant="ghost" size="sm" onClick={() => handleEdit(row.original)}>
+                    Edit
+                </Button>
+            </div>
+        ),
+    }),
+];
+
+// In JSX:
+<DataTable
+    columns={columns}
+    data={items}
+    totalItems={totalItems}
+    isLoading={isLoading}
+    page={currentPage}
+    itemsPerPage={itemsPerPage}
+    onPageChange={(_, page, perPage) => {
+        setCurrentPage(page);
+        setItemsPerPage(perPage);
+    }}
+/>
+```
+
+Props:
+- `columns` - Column definitions from `createColumnHelper` (`@tanstack/react-table`)
+- `data` - Array of row data
+- `totalItems` - Total count for pagination
+- `isLoading` - Loading state
+- `page` - Current page number
+- `itemsPerPage` - Items per page
+- `onPageChange` - Callback `(event, page, perPage) => void`
+
+### 3. `Table` primitives (For fully custom layouts)
+
+Low-level shadcn/ui-style table primitives. **Use only when `ListPage` and `DataTable` don't fit** (e.g., a simple read-only table with no pagination, or a highly custom layout).
+
+```tsx
+import {
+    Table,
+    TableHeader,
+    TableBody,
+    TableRow,
+    TableHead,
+    TableCell,
+} from '@vendure/dashboard';
+
+<Table>
+    <TableHeader>
+        <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Created</TableHead>
+        </TableRow>
+    </TableHeader>
+    <TableBody>
+        {items.map(item => (
+            <TableRow key={item.id}>
+                <TableCell>{item.name}</TableCell>
+                <TableCell>{item.status}</TableCell>
+                <TableCell>{item.createdAt}</TableCell>
+            </TableRow>
+        ))}
+    </TableBody>
+</Table>
+```
+
+### Which table to use?
+
+| Scenario | Component |
+|----------|-----------|
+| Standard entity list page with search/filter/sort/pagination | `ListPage` |
+| Embedded table inside a detail page or custom page | `DataTable` |
+| Simple read-only table, no pagination needed | `Table` primitives |
+| **Raw HTML `<table>`** | **NEVER - use one of the above instead** |
+
+Rules:
+- **ALWAYS import table components from `@vendure/dashboard`** - never use raw HTML `<table>`, `<thead>`, `<tbody>`, `<tr>`, `<th>`, `<td>` elements
+- **Prefer `ListPage`** for any standard list view - it handles search, filtering, sorting, pagination, and bulk actions automatically
+- **Use `DataTable`** when you need a table embedded inside another page (e.g., a list of applications inside a job posting detail page)
+- **Use `Table` primitives** only when `ListPage` and `DataTable` are not suitable for the layout
+- When using `DataTable`, define columns with `createColumnHelper` from `@tanstack/react-table` and manage pagination state manually
+- When using `DataTable`, wrap column definitions in `useMemo` to avoid unnecessary re-renders
+
+---
+
+
+## Extending Existing Pages
+
+### Page Blocks (inject into existing detail pages)
+
+```tsx
+pageBlocks: [
+    {
+        id: 'my-custom-block',
+        title: 'My Custom Section',
+        location: {
+            pageId: 'channel-detail',  // Target page
+            column: 'main',           // 'main' or 'side'
+            position: {
+                blockId: 'channel-defaults',  // Anchor block
+                order: 'after',              // 'before' or 'after'
+            },
+        },
+        component: ({ context }) => {
+            const entityId = context.entity?.id;
+            // Render custom UI
+        },
+    },
+],
+```
+
+### Action Bar Items (add buttons to existing pages)
+
+```tsx
+actionBarItems: [
+    {
+        pageId: 'order-detail',
+        component: ({ context }) => {
+            const order = context.entity;
+            return (
+                <Button onClick={() => handleAction(order)}>
+                    My Action
+                </Button>
+            );
+        },
+    },
+],
+```
+
+---
+
+## API Calls Outside of useDetailPage
+
+When you need to make API calls manually (not via useDetailPage):
+
+```tsx
+import { api } from '@vendure/dashboard';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+// Query
+const { data, isLoading } = useQuery({
+    queryKey: ['myEntities', options],
+    queryFn: () => api.query(getMyEntityListQuery, { options }),
+});
+
+// Mutation
+const queryClient = useQueryClient();
+const { mutateAsync } = useMutation({
+    mutationFn: (input: any) => api.mutate(createMyEntityMutation, { input }),
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['myEntities'] });
+        toast.success('Created successfully');
+    },
+});
+```
+
+---
+
+## Registering the Dashboard Extension
+
+In the plugin's `@VendurePlugin` decorator, add the `dashboard` property:
+
+```typescript
+@VendurePlugin({
+    // ... other config
+    dashboard: './dashboard/index.tsx',  // Path relative to plugin file
+    compatibility: '^3.0.0',
+})
+export class MyPlugin {}
+```
+
+---
+
+## Import Conventions
+
+```tsx
+// Vendure Dashboard components and utilities
+import { Page, PageLayout, ListPage, useDetailPage, api, ... } from '@vendure/dashboard';
+
+// Router
+import { Link, useNavigate } from '@tanstack/react-router';
+import { AnyRoute } from '@tanstack/react-router';
+
+// Data fetching
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
+// Notifications
+import { toast } from 'sonner';
+
+// Icons
+import { PlusIcon, Trash2, Settings, ... } from 'lucide-react';
+
+// GraphQL (ALWAYS use @/gql alias)
+import { graphql, ResultOf, VariablesOf } from '@/gql';
+
+// Local GraphQL operations
+import { getMyEntityListQuery, ... } from './<entity>.graphql';
+```
+
+---
+
+## Permission Guards (REQUIRED)
+
+Every dashboard extension MUST enforce permissions in **3 locations**. Failing to add any of these means unauthorized admin users can access or modify the entity.
+
+### 1. Nav Menu Item (`requiresPermission`)
+
+Controls whether the nav link is visible to the current admin user.
+
+```tsx
+// In <entity>-list.tsx
+navMenuItem: {
+    sectionId: 'my-section',
+    id: 'my-entity-list',
+    url: '/my-entity',
+    title: 'My Entities',
+    requiresPermission: 'MyPermission',  // REQUIRED
+},
+```
+
+### 2. Detail Page Submit Button (`<PermissionGuard>`)
+
+Hides the Create/Update button from unauthorized users. Import `PermissionGuard` from `@vendure/dashboard`.
+
+```tsx
+// In <entity>-detail.tsx
+import { PermissionGuard } from '@vendure/dashboard';
+
+<PageActionBarRight>
+    <PermissionGuard requires={['MyPermission']}>
+        <Button type="submit" disabled={!form.formState.isDirty || isPending}>
+            {creatingNewEntity ? 'Create' : 'Update'}
+        </Button>
+    </PermissionGuard>
+</PageActionBarRight>
+```
+
+### 3. Bulk Action (`requiresPermission`)
+
+Controls whether the bulk action (e.g., delete) is available to the current admin user.
+
+```tsx
+// In components/<entity>-bulk-actions.tsx
+<DataTableBulkActionItem
+    label="Delete"
+    icon={Trash2}
+    requiresPermission={['MyPermission']}  // REQUIRED
+    confirmationText={`Delete ${selection.length} item(s)?`}
+    onClick={handleDelete}
+/>
+```
+
+**Important:** The permission name used in the dashboard (e.g., `'MyPermission'`) must match the `name` defined in the plugin's `PermissionDefinition` (in `constants.ts`).
+
+---
+
+
+## Checklist for New Dashboard Extension
+
+- [ ] `dashboard/index.tsx` created with `defineDashboardExtension()`
+- [ ] GraphQL operations defined in `<entity>.graphql.ts` with fragment
+- [ ] List page created with `<ListPage>` component
+- [ ] Detail page created with `useDetailPage` hook
+- [ ] Create and update modes handled via `params.id === 'new'`
+- [ ] Translatable fields use `TranslatableFormFieldWrapper`
+- [ ] Non-translatable fields use `FormFieldWrapper`
+- [ ] `requiresPermission` set on `navMenuItem` in list page route
+- [ ] `<PermissionGuard>` wrapping submit button in detail page
+- [ ] `requiresPermission` set on `DataTableBulkActionItem` in bulk actions
+- [ ] Toast notifications on success/error
+- [ ] Bulk actions registered (at minimum: delete)
+- [ ] `dashboard: './dashboard/index.tsx'` added to `@VendurePlugin` decorator
+- [ ] Navigation menu item configured with correct `sectionId`
+- [ ] Hidden columns configured in `defaultVisibility` (id, languageCode, translations)
+- [ ] Tables use `ListPage`, `DataTable`, or `Table` primitives from `@vendure/dashboard` (no raw HTML tables)
+
+---
+
+## Common Pitfalls
+
+1. **DO NOT use Angular** - this project uses the React-based Vendure v3 Dashboard, not the legacy Angular Admin UI
+2. **DO NOT import from `@vendure/admin-ui`** - use `@vendure/dashboard` instead
+3. **DO NOT use `fetch` directly** - use `api.query()` and `api.mutate()` from `@vendure/dashboard`
+4. **DO NOT forget `resetForm()` after successful save** - form will show stale dirty state
+5. **DO NOT forget to navigate after creating** - redirect from `/new` to `/<id>`
+6. **DO NOT hardcode language** - use `TranslatableFormFieldWrapper` for translatable fields
+7. **GraphQL imports MUST use `@/gql`** - this is the Vite alias for the codegen output
+8. **Fragment array syntax** - pass fragments as second argument to `graphql()`: `graphql(\`...\`, [fragment])`
+9. **DO NOT forget permission guards** - every extension needs `requiresPermission` on `navMenuItem`, `<PermissionGuard>` on detail page submit button, and `requiresPermission` on bulk action items. All three are required.
+10. **DO NOT use raw HTML `<table>` elements** - always use `ListPage`, `DataTable`, or `Table`/`TableRow`/`TableCell` primitives from `@vendure/dashboard`
