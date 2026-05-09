@@ -5,7 +5,7 @@
     "scripts": {
         "dev:server": "ts-node-dev -P ./tsconfig.json ./src/index.ts",
         "dev:worker": "ts-node-dev -P ./tsconfig.json ./src/index-worker.ts",
-        "dev": "concurrently yarn:dev:*",
+        "dev": "concurrently bun:dev:*",
         "build": "./build.sh",
         "start:server": "node ./dist/src/index.js",
         "start:worker": "node ./dist/src/index-worker.js",
@@ -44,7 +44,7 @@
     },
     "lint-staged": {
         "**/*": [
-            "yarn format"
+            "bun format"
         ]
     }
 }

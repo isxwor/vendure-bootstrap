@@ -16,7 +16,7 @@ fi
 
 # Run migrations first but continue if they fail
 # echo "Running migrations..."
-# if ! yarn migration:run; then
+# if ! bun migration:run; then
 #     printf "%s⚠ Migration failed, continuing...%s\n" "$YELLOW" "$NC"
 # fi
 
@@ -31,12 +31,12 @@ trap cleanup INT TERM
 
 # Start Vendure worker in background
 echo "Starting Vendure worker..."
-yarn start:worker &
+bun start:worker &
 WORKER_PID=$!
 
 # Start Vendure server in background
 echo "Starting Vendure server..."
-yarn start:server &
+bun start:server &
 SERVER_PID=$!
 
 # Wait for both to finish

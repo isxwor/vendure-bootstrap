@@ -37,7 +37,7 @@ import { PluginCommonModule, VendurePlugin } from '@vendure/core';
 
 @VendurePlugin({
     imports: [PluginCommonModule],
-    entities: [MyEntity, MyEntityTranslation],  // Register ALL entities including translations
+    entities: [MyEntity, MyEntityTranslation], // Register ALL entities including translations
     adminApiExtensions: {
         schema: adminApiExtensions,
         resolvers: [MyAdminResolver],
@@ -57,6 +57,7 @@ export class MyPlugin {}
 ```
 
 Rules:
+
 - ALWAYS import `PluginCommonModule`
 - ALWAYS set `compatibility: '^3.0.0'`
 - Register custom permissions via `configuration` callback pushing to `config.authOptions.customPermissions`
@@ -102,10 +103,12 @@ export class MyEntity extends VendureEntity {
 When an entity has fields that need multi-language support (titles, descriptions, content, slugs, etc.), use the Translatable pattern.
 
 **When to use Translatable:**
+
 - Entity has user-facing text fields (names, titles, descriptions, content, slugs, meta tags)
 - Content will be displayed to end customers in their language
 
 **When NOT to use Translatable:**
+
 - Entity only has system fields (status, dates, numeric values, boolean flags, relations)
 - Entity stores internal/technical data
 
@@ -169,6 +172,7 @@ export class MyEntityTranslation extends VendureEntity implements Translation<My
 ```
 
 Key rules for Translatable:
+
 - Translatable fields on parent entity: type `LocaleString`, NO `@Column()` decorator
 - Same-named fields on translation entity: regular `@Column()` with `string` type
 - Translation `@OneToMany` on parent MUST have `{ eager: true }`
@@ -243,7 +247,7 @@ import {
     ListQueryBuilder,
     TranslatorService,
     TranslatableSaver,
-    ChannelService,        // Only if ChannelAware
+    ChannelService, // Only if ChannelAware
     RequestContext,
     ID,
     assertFound,
@@ -257,9 +261,9 @@ export class MyService {
     constructor(
         private connection: TransactionalConnection,
         private listQueryBuilder: ListQueryBuilder,
-        private translator: TranslatorService,       // Only if Translatable
+        private translator: TranslatorService, // Only if Translatable
         private translatableSaver: TranslatableSaver, // Only if Translatable
-        private channelService: ChannelService,       // Only if ChannelAware
+        private channelService: ChannelService, // Only if ChannelAware
     ) {}
 }
 ```
@@ -269,6 +273,7 @@ export class MyService {
 For entities that do NOT use translations - simpler constructor, direct repository operations.
 
 **Choose your delete strategy before writing the service:**
+
 - **Soft delete** -- data is preserved, row gets a `deletedAt` timestamp. Use when the data may need to be recovered, audited, or referenced by other entities. Requires `@DeleteDateColumn` on the entity and `IsNull()` filters on all queries.
 - **Hard delete** -- row is permanently removed from the database. Use for ephemeral/disposable data (wishlist items, session data, logs, tracking records) where recovery is not needed.
 
@@ -307,17 +312,13 @@ export class MyEntityService {
     }
 
     async findOne(ctx: RequestContext, id: ID): Promise<MyEntity | undefined> {
-        const entity = await this.connection
-            .getRepository(ctx, MyEntity)
-            .findOne({ where: { id } });
+        const entity = await this.connection.getRepository(ctx, MyEntity).findOne({ where: { id } });
         return entity ?? undefined;
     }
 
     async create(ctx: RequestContext, input: any): Promise<MyEntity> {
         const entity = new MyEntity(input);
-        const saved = await this.connection
-            .getRepository(ctx, MyEntity)
-            .save(entity);
+        const saved = await this.connection.getRepository(ctx, MyEntity).save(entity);
         return assertFound(this.findOne(ctx, saved.id));
     }
 
@@ -329,9 +330,7 @@ export class MyEntityService {
     }
 
     async delete(ctx: RequestContext, id: ID): Promise<DeletionResponse> {
-        const entity = await this.connection
-            .getRepository(ctx, MyEntity)
-            .findOneOrFail({ where: { id } });
+        const entity = await this.connection.getRepository(ctx, MyEntity).findOneOrFail({ where: { id } });
         try {
             await this.connection.getRepository(ctx, MyEntity).remove(entity);
             return { result: DeletionResult.DELETED, message: '' };
@@ -345,13 +344,9 @@ export class MyEntityService {
             throw new UserInputError('No IDs provided');
         }
         try {
-            const result = await this.connection
-                .getRepository(ctx, MyEntity)
-                .delete({ id: In(ids) as any });
+            const result = await this.connection.getRepository(ctx, MyEntity).delete({ id: In(ids) as any });
             return {
-                result: (result.affected ?? 0) > 0
-                    ? DeletionResult.DELETED
-                    : DeletionResult.NOT_DELETED,
+                result: (result.affected ?? 0) > 0 ? DeletionResult.DELETED : DeletionResult.NOT_DELETED,
                 message: '',
             };
         } catch (e: any) {
@@ -399,7 +394,7 @@ export class MyEntityService {
         return this.listQueryBuilder
             .build(MyEntity, options, {
                 ctx,
-                where: { deletedAt: IsNull() },  // Filter out soft-deleted
+                where: { deletedAt: IsNull() }, // Filter out soft-deleted
             })
             .getManyAndCount()
             .then(([items, totalItems]) => ({
@@ -411,15 +406,13 @@ export class MyEntityService {
     async findOne(ctx: RequestContext, id: ID): Promise<MyEntity | undefined> {
         const entity = await this.connection
             .getRepository(ctx, MyEntity)
-            .findOne({ where: { id, deletedAt: IsNull() } });  // Filter out soft-deleted
+            .findOne({ where: { id, deletedAt: IsNull() } }); // Filter out soft-deleted
         return entity ?? undefined;
     }
 
     async create(ctx: RequestContext, input: any): Promise<MyEntity> {
         const entity = new MyEntity(input);
-        const saved = await this.connection
-            .getRepository(ctx, MyEntity)
-            .save(entity);
+        const saved = await this.connection.getRepository(ctx, MyEntity).save(entity);
         return assertFound(this.findOne(ctx, saved.id));
     }
 
@@ -441,12 +434,10 @@ export class MyEntityService {
         }
         const deleteResult = await this.connection
             .getRepository(ctx, MyEntity)
-            .softDelete({ id: In(ids) as any });  // Sets deletedAt, does NOT remove the row
+            .softDelete({ id: In(ids) as any }); // Sets deletedAt, does NOT remove the row
 
         return {
-            result: (deleteResult.affected ?? 0) > 0
-                ? DeletionResult.DELETED
-                : DeletionResult.NOT_DELETED,
+            result: (deleteResult.affected ?? 0) > 0 ? DeletionResult.DELETED : DeletionResult.NOT_DELETED,
             message: '',
         };
     }
@@ -455,15 +446,16 @@ export class MyEntityService {
 
 Key differences between Hard Delete and Soft Delete (non-translatable):
 
-| | Hard Delete | Soft Delete |
-|---|---|---|
-| Entity | No `deletedAt` column | Has `@DeleteDateColumn` |
-| Queries | No extra filter | EVERY query adds `deletedAt: IsNull()` |
-| Delete method | `.remove()` / `.delete()` | `.softDelete()` |
-| Data after delete | Gone permanently | Row stays, `deletedAt` is set |
-| Use for | Ephemeral data (wishlist, logs, sessions) | Business data that may need recovery/audit |
+|                   | Hard Delete                               | Soft Delete                                |
+| ----------------- | ----------------------------------------- | ------------------------------------------ |
+| Entity            | No `deletedAt` column                     | Has `@DeleteDateColumn`                    |
+| Queries           | No extra filter                           | EVERY query adds `deletedAt: IsNull()`     |
+| Delete method     | `.remove()` / `.delete()`                 | `.softDelete()`                            |
+| Data after delete | Gone permanently                          | Row stays, `deletedAt` is set              |
+| Use for           | Ephemeral data (wishlist, logs, sessions) | Business data that may need recovery/audit |
 
 Key differences from translatable service (both options):
+
 - NO `TranslatorService` or `TranslatableSaver` in constructor
 - `findAll` returns items directly (no `.translator.translate()` call)
 - `create` uses `new MyEntity(input)` + `.save()` instead of `translatableSaver.create()`
@@ -579,22 +571,26 @@ async delete(ctx: RequestContext, ids: ID[]): Promise<DeletionResponse> {
 ## Error Handling Rules
 
 ### When to throw EntityNotFoundError
+
 - In `findOneOrThrow` methods when an entity lookup returns null and the caller expects the entity to exist
 - Use: `throw new EntityNotFoundError('EntityName', id)`
 - Import from `@vendure/core`
 
 ### When to throw UserInputError
+
 - Invalid input data (empty arrays, missing required fields, non-existent IDs in bulk operations)
 - Business logic validation failures
 - Attempting to remove from default channel
 - Use: `throw new UserInputError('error message')`
 
 ### When to use try-catch
+
 - ONLY around operations that can fail in expected ways where you need to return a structured error response (e.g., `DeletionResponse` with `NOT_DELETED`)
 - ONLY around external service calls (HTTP, third-party APIs) where you need to log and wrap the error
 - ONLY in batch processing where individual item failure should not abort the whole batch
 
 ### When to let errors bubble up (NO try-catch)
+
 - Service CRUD methods (create, update, delete) - let Vendure framework handle errors
 - Database operations using `TransactionalConnection` - TypeORM/Vendure will throw appropriate errors
 - Resolver methods - they are thin pass-throughs, never catch errors here
@@ -603,6 +599,7 @@ async delete(ctx: RequestContext, ids: ID[]): Promise<DeletionResponse> {
 - `connection.getEntityOrThrow()` calls - throws automatically
 
 ### General principle
+
 **Default: let errors bubble up.** The Vendure framework catches errors at the GraphQL layer and converts them to appropriate error responses. Only use try-catch when you have a specific recovery strategy or need to return a structured error type.
 
 ---
@@ -656,6 +653,7 @@ export class MyAdminResolver {
 ```
 
 Rules:
+
 - Use `@Allow()` with the correct CRUD permission on every resolver method
 - Use `@Transaction()` on delete mutations and any mutation doing multiple DB writes
 - Queries do NOT need `@Transaction()`
@@ -674,13 +672,14 @@ export class MyShopResolver {
     async myEntities(@Ctx() ctx: RequestContext, @Args() args: any) {
         return this.myService.findAll(ctx, {
             ...args.options,
-            filter: { enabled: { eq: true } },  // Force-filter to only show enabled
+            filter: { enabled: { eq: true } }, // Force-filter to only show enabled
         });
     }
 }
 ```
 
 Rules:
+
 - Shop resolvers are typically read-only (queries only)
 - No `@Allow()` decorator needed for public endpoints
 - ALWAYS force-filter to show only `enabled: true` or published status
@@ -766,6 +765,7 @@ export const adminApiExtensions = gql`
 ```
 
 Rules:
+
 - Extract shared types into a `common` fragment
 - Types MUST implement `Node` interface (requires `id: ID!`)
 - List types MUST implement `PaginatedList` interface
@@ -790,17 +790,18 @@ Use the npm scripts defined in `package.json`:
 
 ```bash
 # 1. Generate migration after entity changes
-yarn migration:generate <descriptive-name>
+bun migration:generate <descriptive-name>
 
 # 2. Review the generated file in src/migrations/
 # 3. Run the migration
-yarn migration:run
+bun migration:run
 
 # To revert the last migration if needed
-yarn migration:revert
+bun migration:revert
 ```
 
 These scripts map to:
+
 - `migration:generate` -> `ts-node --transpile-only migration.ts generate`
 - `migration:run` -> `ts-node --transpile-only migration.ts run`
 - `migration:revert` -> `ts-node --transpile-only migration.ts revert`
@@ -810,7 +811,7 @@ The migration file outputs to `./src/migrations/` with a timestamp prefix.
 ### Migration file format
 
 ```typescript
-import { MigrationInterface, QueryRunner } from "typeorm";
+import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class MyMigration1234567890123 implements MigrationInterface {
     public async up(queryRunner: QueryRunner): Promise<any> {
@@ -829,34 +830,41 @@ export class MyMigration1234567890123 implements MigrationInterface {
 ### Before creating a PR
 
 1. **ALWAYS fetch and pull from deploy branch first:**
-   ```bash
-   git fetch origin
-   git pull origin <deploy-branch>
-   ```
+
+    ```bash
+    git fetch origin
+    git pull origin <deploy-branch>
+    ```
 
 2. **Resolve any merge conflicts**
 
 3. **Check if the pull brought in new migration files:**
-   ```bash
-   git diff --name-only HEAD@{1} HEAD -- src/migrations/
-   ```
+
+    ```bash
+    git diff --name-only HEAD@{1} HEAD -- src/migrations/
+    ```
 
 4. **If new migration files came in from the pull, run migrations:**
-   ```bash
-   yarn migration:run
-   ```
-   Only run migrations if new migration files were added by the pull. Do NOT run migrations if no new files appeared.
+
+    ```bash
+    bun migration:run
+    ```
+
+    Only run migrations if new migration files were added by the pull. Do NOT run migrations if no new files appeared.
 
 5. **If YOU made entity changes, generate YOUR migration AFTER pulling and running any incoming migrations:**
-   ```bash
-   yarn migration:generate <your-feature-name>
-   yarn migration:run
-   ```
+
+    ```bash
+    bun migration:generate <your-feature-name>
+    bun migration:run
+    ```
 
 6. **Then create the PR**
 
 ### Commit message conventions
+
 This project uses commitlint. Follow conventional commits:
+
 - `feat: add FAQ plugin`
 - `fix: resolve blog translation issue`
 - `chore: generate migration for FAQ entity`

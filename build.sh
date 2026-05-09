@@ -5,10 +5,10 @@ rm -rf dist
 
 set -e
 echo ">> Compiling project"
-npx tsc
+bunx tsc
 
 echo '>> Compiling react dashboard'
-npx vite build
+bunx vite build
 set +e
 
 echo '>> Copying files'

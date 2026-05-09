@@ -6,26 +6,23 @@
         "esModuleInterop": true,
         "emitDecoratorMetadata": true,
         "experimentalDecorators": true,
+        "useDefineForClassFields": false,
         "strictPropertyInitialization": false,
         "target": "es2019",
         "strict": true,
         "sourceMap": false,
         "skipLibCheck": true,
         "outDir": "./dist",
-        "baseUrl": "./",
-        "resolveJsonModule": true
+        "rootDir": "./"
     },
-    "exclude": [
-        "node_modules",
-        "migration.ts",
-        "src/plugins/**/ui/*",
-        "src/plugins/**/dashboard/*",
-        "src/gql/**/*.ts",
-        "admin-ui",
-        "vite.*.*ts"
-    ],
-    "references": [{ "path": "./tsconfig.dashboard.json" }],
+    "include": ["src/**/*.ts", "migration.ts"],
+    "exclude": ["node_modules", "src/plugins/**/dashboard/*", "src/gql/*", "vite.*.*ts"],
     "ts-node": {
         "files": true
-    }
+    },
+    "references": [
+        {
+            "path": "./tsconfig.dashboard.json"
+        }
+    ]
 }

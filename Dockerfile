@@ -1,50 +1,52 @@
+# syntax=docker/dockerfile:1.7
+
 ### BUILDER STAGE
-FROM node:24-alpine AS builder
+FROM oven/bun:1-alpine AS builder
 
 WORKDIR /app
 
-# Copy only dependency manifests first — best caching
-COPY package.json yarn.lock ./
+# Copy manifests first for maximum cache reuse
+COPY package.json bun.lock ./
 
-# Use BuildKit cache mounts for Yarn cache
-RUN yarn install --frozen-lockfile --network-timeout 100000
+# Cache Bun downloads between builds
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --frozen-lockfile
 
-# Copy the full source (after deps, so dependencies layer is cached)
+# Copy source only after deps are installed
 COPY . .
 
-# Build the project
-RUN yarn build && chmod +x entrypoint.sh
+# Build app
+RUN bun run build && chmod +x entrypoint.sh
 
-# Package only what is needed for the runner stage
-# (src → dist, static assets, config files, entrypoint)
+# Package runtime artifacts
 RUN tar -czf build.tar.gz \
-    src \
     dist \
     static \
-    tsconfig*.json \
     migration.ts \
-    entrypoint.sh
+    entrypoint.sh \
+    package.json \
+    bun.lock
 
 ### RUNNER STAGE
-FROM node:24-alpine AS runner
+FROM oven/bun:1-alpine AS runner
 
 WORKDIR /app
 
-# Install required runtime tools (minimal)
 RUN apk add --no-cache curl wget
 
-# Copy production dependency manifest
-COPY package.json yarn.lock ./
+# Copy manifests first
+COPY package.json bun.lock ./
 
-# BuildKit cache for yarn + minimal production install
-RUN yarn install --prod --frozen-lockfile --network-timeout 100000 && \
-    yarn cache clean --all
+# Reuse Bun cache here too
+RUN --mount=type=cache,target=/root/.bun/install/cache \
+    bun install --production --frozen-lockfile
 
-# Extract artifacts from builder stage
+# Copy build artifacts
 COPY --from=builder /app/build.tar.gz ./
-RUN tar -xzf build.tar.gz && rm -rf build.tar.gz /var/cache/apk/* /tmp/* /usr/share/man /usr/share/doc
+
+RUN tar -xzf build.tar.gz && \
+    rm build.tar.gz
 
 EXPOSE 3000
 
 ENTRYPOINT ["./entrypoint.sh"]
-
