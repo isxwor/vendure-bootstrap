@@ -40,6 +40,11 @@ declare global {
             VERIFY_EMAIL_URL: string;
             PASSWORD_RESET_URL: string;
             CHANGE_EMAIL_URL: string;
+
+            VENDURE_API_HOST: string;
+            VENDURE_API_PORT: string;
+
+            VENDURE_DISABLE_TELEMETRY: string;
         }
     }
 }

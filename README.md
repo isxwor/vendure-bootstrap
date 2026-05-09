@@ -1,8 +1,18 @@
 # vendure-bootstrap
 
-This project was generated with [`@vendure/create`](https://github.com/vendure-ecommerce/vendure/tree/master/packages/create).
+A pre-configured [Vendure](https://www.vendure.io) commerce server, originally generated with [`@vendure/create`](https://github.com/vendure-ecommerce/vendure/tree/master/packages/create) and extended with:
 
-Useful links:
+- **Bun** as the package manager and script runner
+- **PostgreSQL** as the database
+- **S3-compatible** asset storage (with a local-disk fallback)
+- **SMTP** email transport (with a dev mailbox fallback)
+- **Vendure Dashboard** (React/Vite) served from the Vendure server
+- **GraphQL Codegen** for typed Admin/Shop API clients
+- **Husky + commitlint + lint-staged + Prettier** for commit hygiene
+- A multi-stage **Docker** image based on `oven/bun:1-alpine`
+- A custom **Branding plugin** (`src/plugins/branding`)
+
+Useful Vendure links:
 
 - [Vendure docs](https://www.vendure.io/docs)
 - [Vendure Discord community](https://www.vendure.io/community)
@@ -11,137 +21,204 @@ Useful links:
 
 ## Directory structure
 
-* `/src` contains the source code of your Vendure server. All your custom code and plugins should reside here.
-* `/static` contains static (non-code) files such as assets (e.g. uploaded images) and email templates.
+- `/src` — Vendure server source. Custom plugins live in `src/plugins/`.
+- `/src/migrations` — TypeORM migrations (committed).
+- `/src/codegen` — Generated Admin/Shop API TypeScript types (do not edit).
+- `/scripts` — One-off scripts (e.g. `seed.ts` for populating initial data).
+- `/static` — Non-code assets: uploaded files (`static/assets`) and email templates (`static/email/templates`).
+- `src/vendure-config.ts` — Server configuration (DB, plugins, auth, email, assets).
+- `vite.config.mts` — Build config for the Vendure Dashboard bundle.
+- `Dockerfile` / `docker-compose.yml` / `entrypoint.sh` / `build.sh` — Containerization & build pipeline.
+
+## Prerequisites
+
+- **Node.js** `^18.17.0 || ^20.3.0 || >=21.0.0` (required by the `sharp` image library)
+- **Bun** `>=1.0` — used for installs and scripts (`bun install`, `bun run …`)
+- **Docker** — only needed if you use `docker-compose` for local services
+
+## Initial setup
+
+```bash
+# 1. Install dependencies
+bun install
+
+# 2. Copy environment variables and edit as needed
+cp .env.example .env
+
+# 3. Start a Postgres instance (any way you like; here via docker compose)
+docker compose up -d postgres_db
+
+# 4. Run migrations
+bun run migration:run
+
+# 5. (Optional) Seed initial data, products and assets
+bun run seed
+```
+
+> The provided `docker-compose.yml` exposes Postgres on host port **6543** (not 5432) to avoid colliding with a locally running Postgres. Update `DB_PORT` in `.env` accordingly if you use it.
+
+### Environment variables
+
+See [`.env.example`](./.env.example) for the full list. Key flags:
+
+| Variable    | Purpose                                                                                                |
+| ----------- | ------------------------------------------------------------------------------------------------------ |
+| `APP_ENV`   | `dev` enables GraphQL debug endpoints and disables `trustProxy`.                                       |
+| `EMAIL_ENV` | `dev` writes emails to `static/email/test-emails` and serves a `/mailbox` route instead of using SMTP. |
+| `ASSET_ENV` | `local` stores uploaded assets on disk under `static/assets`; otherwise S3 credentials are used.       |
+| `DB_*`      | PostgreSQL connection settings.                                                                        |
+| `S3_*`      | S3-compatible storage settings (used when `ASSET_ENV != local`).                                       |
+| `SMTP_*`    | SMTP transport (used when `EMAIL_ENV != dev`).                                                         |
 
 ## Development
 
-```
-npm run dev
+```bash
+bun run dev
 ```
 
-will start the Vendure server and [worker](https://www.vendure.io/docs/developer-guide/vendure-worker/) processes from
-the `src` directory.
+This starts both the Vendure **server** and **worker** in watch mode (via `concurrently` + `ts-node-dev`).
+
+Default endpoints:
+
+- Shop API: `http://localhost:3000/shop-api`
+- Admin API: `http://localhost:3000/admin-api`
+- Admin Dashboard: `http://localhost:3000/dashboard`
+- GraphiQL: `http://localhost:3000/graphiql`
+- Dev mailbox (when `EMAIL_ENV=dev`): `http://localhost:3000/mailbox`
 
 ## Build
 
-```
-npm run build
+```bash
+bun run build
 ```
 
-will compile the TypeScript sources into the `/dist` directory.
+The [`build.sh`](./build.sh) script:
+
+1. Cleans `dist/`
+2. Compiles TypeScript (`tsc`)
+3. Builds the Vendure Dashboard bundle (`vite build`)
+4. Copies email templates into `dist/static/email/`
 
 ## Production
 
-For production, there are many possibilities which depend on your operational requirements as well as your production
-hosting environment.
+### Run directly
 
-### Running directly
-
-You can run the built files directly with the `start` script:
-
-```
-npm run start
+```bash
+bun run start
 ```
 
-You could also consider using a process manager like [pm2](https://pm2.keymetrics.io/) to run and manage
-the server & worker processes.
+This invokes [`entrypoint.sh`](./entrypoint.sh), which sources `.env` and runs the worker and server in parallel, propagating `SIGINT`/`SIGTERM` so both shut down cleanly.
 
-### Using Docker
+You can also run them individually:
 
-We've included a sample [Dockerfile](./Dockerfile) which you can build with the following command:
-
-```
-docker build -t vendure .
+```bash
+bun run start:server
+bun run start:worker
 ```
 
-This builds an image and tags it with the name "vendure". We can then run it with:
+For multi-process management, [pm2](https://pm2.keymetrics.io/) works well.
 
+### Docker
+
+A multi-stage [`Dockerfile`](./Dockerfile) based on `oven/bun:1-alpine` builds the app and ships only the runtime artifacts (`dist`, `static`, `migration.ts`, `entrypoint.sh`, lockfiles).
+
+```bash
+# Build
+docker build -t vendure-bootstrap .
+
+# Run (server + worker via entrypoint.sh)
+docker run --rm -p 3000:3000 --env-file .env vendure-bootstrap
 ```
-# Run the server
-docker run -dp 3000:3000 -e "DB_HOST=host.docker.internal" --name vendure-server vendure npm run start:server
 
-# Run the worker
-docker run -dp 3000:3000 -e "DB_HOST=host.docker.internal" --name vendure-worker vendure npm run start:worker
-```
-
-Here is a breakdown of the command used above:
-
-- `docker run` - run the image we created with `docker build`
-- `-dp 3000:3000` - the `-d` flag means to run in "detached" mode, so it runs in the background and does not take
-control of your terminal. `-p 3000:3000` means to expose port 3000 of the container (which is what Vendure listens
-on by default) as port 3000 on your host machine.
-- `-e "DB_HOST=host.docker.internal"` - the `-e` option allows you to define environment variables. In this case we
-are setting the `DB_HOST` to point to a special DNS name that is created by Docker desktop which points to the IP of
-the host machine. Note that `host.docker.internal` only exists in a Docker Desktop environment and thus should only be
-used in development.
-- `--name vendure-server` - we give the container a human-readable name.
-- `vendure` - we are referencing the tag we set up during the build.
-- `npm run start:server` - this last part is the actual command that should be run inside the container.
+The image's `ENTRYPOINT` is `./entrypoint.sh`, so the container runs both the server and worker in one process tree. Run two containers (each with its own command) if you prefer to scale them independently.
 
 ### Docker Compose
 
-We've included a [docker-compose.yml](./docker-compose.yml) file which includes configuration for commonly-used
-services such as PostgreSQL, MySQL, MariaDB, Elasticsearch and Redis.
+[`docker-compose.yml`](./docker-compose.yml) provides commonly-used backing services (PostgreSQL, MySQL, MariaDB, Redis, Typesense, Elasticsearch). Default ports are remapped to avoid host-port conflicts — see the file for specifics.
 
-To use Docker Compose, you will need to have Docker installed on your machine. Here are installation
-instructions for [Mac](https://docs.docker.com/desktop/install/mac-install/), [Windows](https://docs.docker.com/desktop/install/windows-install/),
-and [Linux](https://docs.docker.com/desktop/install/linux/).
-
-You can start the services with:
-
-```shell
-docker-compose up <service>
-
-# examples:
-docker-compose up postgres_db
-docker-compose up redis
+```bash
+docker compose up -d postgres_db
+docker compose up -d redis
+docker compose up -d typesense
 ```
 
 ## Plugins
 
-In Vendure, your custom functionality will live in [plugins](https://www.vendure.io/docs/plugins/).
-These should be located in the `./src/plugins` directory.
+Custom functionality lives in [plugins](https://www.vendure.io/docs/plugins/) under `src/plugins/`. This project ships a small `BrandingPlugin` as an example and as the dashboard branding hook.
 
-To create a new plugin run:
+To scaffold a new plugin:
 
+```bash
+bunx vendure add
 ```
-npx vendure add
-```
 
-and select `[Plugin] Create a new Vendure plugin`.
+…and select **`[Plugin] Create a new Vendure plugin`**.
 
 ## Migrations
 
-[Migrations](https://www.vendure.io/docs/developer-guide/migrations/) allow safe updates to the database schema. Migrations
-will be required whenever you make changes to the `customFields` config or define new entities in a plugin.
+[Migrations](https://www.vendure.io/docs/developer-guide/migrations/) keep the database schema in sync with your entities and `customFields`. `synchronize` is **off** in this project — every schema change must be captured in a migration.
 
-To generate a new migration, run:
+```bash
+# Generate a new migration after editing entities / customFields
+bun run migration:generate <name>
 
+# Apply pending migrations
+bun run migration:run
+
+# Revert the most recent migration
+bun run migration:revert
 ```
-npx vendure migrate
+
+Generated files land in `src/migrations/` and **must be committed**. They are also executed automatically on server start by `runMigrations()` in [`src/index.ts`](./src/index.ts).
+
+## GraphQL Codegen
+
+Typed clients for the Admin and Shop APIs are generated from a running server:
+
+```bash
+# Server must be running on localhost:3000
+bun run codegen
 ```
 
-The generated migration file will be found in the `./src/migrations/` directory, and should be committed to source control.
-Next time you start the server, and outstanding migrations found in that directory will be run by the `runMigrations()`
-function in the [index.ts file](./src/index.ts).
+Output:
 
-If, during initial development, you do not wish to manually generate a migration on each change to customFields etc, you
-can set `dbConnectionOptions.synchronize` to `true`. This will cause the database schema to get automatically updated
-on each start, removing the need for migration files. Note that this is **not** recommended once you have production
-data that you cannot lose.
+- `src/codegen/shopTypes.ts`
+- `src/codegen/adminTypes.ts`
 
----
+Configuration: [`codegen.ts`](./codegen.ts).
 
-You can also run any pending migrations manually, without starting the server via the "vendure migrate" command.
+## Seeding
 
----
+```bash
+bun run seed
+```
+
+Populates the database using `scripts/data/initial-data.ts` and `scripts/data/products.csv`, imports assets from `scripts/data/assets/`, and sets the default channel currency to `NPR` (with `USD` available). Edit [`scripts/seed.ts`](./scripts/seed.ts) to customize.
+
+## Code style & commits
+
+- **Prettier** runs on staged files via `lint-staged` on every commit (`bun format`).
+- **Husky** installs Git hooks (`bun run prepare`, executed automatically after `bun install`).
+- **commitlint** enforces [Conventional Commits](https://www.conventionalcommits.org/) — see [`commitlint.config.js`](./commitlint.config.js).
 
 ## Troubleshooting
 
-### Error: Could not load the "sharp" module using the \[OS\]-x\[Architecture\] runtime when running Vendure server.
+### `Could not load the "sharp" module …`
 
-- Make sure your Node version is ^18.17.0 || ^20.3.0 || >=21.0.0 to support the Sharp library.
-- Make sure your package manager is up to date.
-- **Not recommended**: if none of the above helps to resolve the issue, install sharp specifying your machines OS and Architecture. For example: `pnpm install sharp --config.platform=linux --config.architecture=x64` or `npm install sharp --os linux --cpu x64`
+- Ensure your Node version is `^18.17.0 || ^20.3.0 || >=21.0.0`.
+- Update your package manager.
+- As a last resort, install `sharp` for your specific platform:
 
+    ```bash
+    bun add sharp --os linux --cpu x64
+    # or
+    npm install sharp --os linux --cpu x64
+    ```
+
+### Migrations fail on first start
+
+The `entrypoint.sh` migration step is currently commented out. Run `bun run migration:run` manually after the database is reachable, or uncomment that block in `entrypoint.sh` to run it on every container start.
+
+### Port conflicts with `docker compose`
+
+The compose file intentionally remaps default ports (e.g. Postgres → `6543`, Redis → `6479`, Typesense → `8208`). Either keep your `.env` aligned with those host ports, or change the `ports:` mappings in `docker-compose.yml`.
