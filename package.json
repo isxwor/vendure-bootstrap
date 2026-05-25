@@ -46,5 +46,8 @@
         "**/*": [
             "bun format"
         ]
+    },
+    "overrides": {
+        "graphql": "16.11.0"
     }
 }
